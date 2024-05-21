@@ -42,7 +42,8 @@ const ImagineApp: React.FC = () => {
     e.preventDefault();
     setIsProcessing(true);
     try {
-      const response = await fetch(`http://localhost:8800/imagine?user_prompt=${encodeURIComponent(userPrompt)}&address=${encodeURIComponent(userAddress)}`, {
+      const cleanedAddress = userAddress.trim()
+      const response = await fetch(`http://localhost:8800/imagine?user_prompt=${encodeURIComponent(userPrompt)}&address=${encodeURIComponent(cleanedAddress)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
