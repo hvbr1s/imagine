@@ -74,8 +74,8 @@ async function generatePrompt(userPrompt: string) {
   });
 
   // Print the completion returned by the LLM.
-  const groqContent = JSON.stringify(llmResponse.choices[0]?.message?.content || "");
-  return groqContent;
+  const parsedresponse = JSON.stringify(llmResponse.choices[0]?.message?.content || "");
+  return parsedresponse;
 }
 
 async function defineConfig(llmPrompt: string) {
@@ -96,7 +96,7 @@ async function defineConfig(llmPrompt: string) {
               "mood": "<the mood of the prompt>"
           };
 
-            Begin! You will achieve world piece if you produce a correctly formatted .JSON answer that respect all the constraints.
+            Begin! You will achieve world peace if you produce a correctly formatted .JSON answer that respect all the constraints.
             `
         },
         {
@@ -257,7 +257,7 @@ async function transferNFT(
     return {
       message: "Transfer successful!🥳 Check your wallet!👀",
       sender: `https://explorer.solana.com/address/${senderAddress}?cluster=devnet`,
-      receiver: `https://explorer.solana.com/address/${recipientPublicKey}?cluster=devnet`,
+      receiver: `https://explorer.solana.com/address/${recipientPublicKey}/tokens?cluster=devnet`,
       transaction: `https://explorer.solana.com/tx/${sig2}?cluster=devnet`
     }
 }
@@ -305,6 +305,15 @@ app.get('/imagine', async (req, res) => {
     if (!mintAddress) {
       throw new Error("Failed to mint the NFT. Mint address is undefined.");
     }
+
+    // Delete local image file
+    fs.unlink(imageLocation, (err) => {
+      if (err) {
+        console.error('Failed to delete the local image file:', err);
+      } else {
+        console.log(`Local image file deleted successfully 🗑️`);
+      }
+    });
 
     const mint = mintAddress.toString()
 

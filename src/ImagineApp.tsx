@@ -107,7 +107,7 @@ const ImagineApp: React.FC = () => {
         {transferDetails && ( 
           <div className="mt-4 text-sm">
             <p>{transferDetails.message}</p>
-            <p>Transaction: <a href={transferDetails.transaction} target="_blank" rel="noopener noreferrer">Click here</a></p>
+            <p><a href={transferDetails.receiver} target="_blank" rel="noopener noreferrer">Click here</a></p>
           </div>
         )}
       </div>
