@@ -291,6 +291,7 @@ app.get('/imagine', async (req, res) => {
     console.log(`LLM prompt 🤖-> ${llmSays}`);
 
     const CONFIG = await defineConfig(llmSays);
+    console.log(`Image Name: ${CONFIG.imgName}`)
     
     const imageLocation = await imagine(llmSays);
     console.log(`Image successfully created and stored in: ${imageLocation}`);
