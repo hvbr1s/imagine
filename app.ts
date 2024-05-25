@@ -249,7 +249,7 @@ async function transferNFT(
       fromOwner: WALLET.publicKey,
       toOwner: destination,
   });
-  // Name new variables since we already have a signature and confirmResponse
+  
   let { signature: sig2, confirmResponse: res2 } = await METAPLEX.rpc().sendAndConfirmTransaction(transferTransactionBuilder, {commitment: 'finalized'});
   if (res2.value.err) {
       throw new Error('Failed to confirm transfer transaction');
@@ -288,13 +288,13 @@ app.get('/imagine', async (req, res) => {
   console.log(`Received request -> Prompt: ${userPrompt}, Address: ${userAddress}`);
 
   try {
-    // Generate random number for image IDing
+    // Assign unique number to project
     const randomNumber = Math.floor(Math.random() * 10000);
     const llmSays = await generatePrompt(userPrompt);
     console.log(`LLM prompt 🤖-> ${llmSays}`);
 
     const CONFIG = await defineConfig(llmSays, randomNumber);
-    console.log(`Image Name: ${CONFIG.imgName}`)
+    console.log(`Image Name -> ${CONFIG.imgName}`)
     
     const imageLocation = await imagine(llmSays, randomNumber);
     console.log(`Image successfully created 🎨`);
