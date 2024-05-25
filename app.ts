@@ -78,7 +78,7 @@ async function generatePrompt(userPrompt: string) {
   return parsedresponse;
 }
 
-async function defineConfig(llmPrompt: string) {
+async function defineConfig(llmPrompt: string, randomNumber: number) {
   const nftAttributes = await gpt_client.chat.completions.create({
     messages: [
         {
@@ -115,7 +115,7 @@ async function defineConfig(llmPrompt: string) {
 
   const CONFIG = {
     uploadPath: './image/',
-    imgFileName: 'image.png',
+    imgFileName: `image${randomNumber}.png`,
     imgType: 'image/png',
     imgName: llmResponse.one_word_title || 'Art', 
     description: llmResponse.description || "Random AI Art",
@@ -142,7 +142,7 @@ async function uploadImage(filePath: string,fileName: string): Promise<string>  
   return imgUri;
 }
 
-async function imagine(userPrompt: string) {
+async function imagine(userPrompt: string, randomNumber: number) {
   const response = await gpt_client.images.generate({
     model: "dall-e-3",
     prompt: userPrompt + ' . Begin!',
@@ -158,8 +158,7 @@ async function imagine(userPrompt: string) {
     responseType: 'arraybuffer'
   });
 
-  // Define the path where the image will be saved
-  const imagePath = path.join('./image', 'image.png');
+  const imagePath = path.join('./image', `image_${randomNumber}.png`);
 
   // Write the image data to a file
   fs.writeFileSync(imagePath, imageResponse.data);
@@ -289,24 +288,20 @@ app.get('/imagine', async (req, res) => {
   console.log(`Received request -> Prompt: ${userPrompt}, Address: ${userAddress}`);
 
   try {
+    // Generate random number for image IDing
+    const randomNumber = Math.floor(Math.random() * 10000);
     const llmSays = await generatePrompt(userPrompt);
     console.log(`LLM prompt 🤖-> ${llmSays}`);
 
-    const CONFIG = await defineConfig(llmSays);
+    const CONFIG = await defineConfig(llmSays, randomNumber);
     console.log(`Image Name: ${CONFIG.imgName}`)
     
-    const imageLocation = await imagine(llmSays);
+    const imageLocation = await imagine(llmSays, randomNumber);
     console.log(`Image successfully created 🎨`);
     const imageUri = await uploadImage(imageLocation, "");
     console.log(`Image URI -> ${imageUri}`);
     const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
     console.log(`Metadata URI -> ${metadataUri}`);
-
-    // Ensure userAddress is treated as a valid recipient public key
-    const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
-    if (!mintAddress) {
-      throw new Error("Failed to mint the NFT. Mint address is undefined.");
-    }
 
     // Delete local image file
     fs.unlink(imageLocation, (err) => {
@@ -316,7 +311,11 @@ app.get('/imagine', async (req, res) => {
         console.log(`Local image file deleted successfully 🗑️`);
       }
     });
-
+    // Ensure userAddress is treated as a valid recipient public key
+    const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
+    if (!mintAddress) {
+      throw new Error("Failed to mint the NFT. Mint address is undefined.");
+    }
     const mint = mintAddress.toString()
     const mintSend = await transferNFT(WALLET, userAddress, mint);
     console.log(mintSend)
