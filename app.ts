@@ -93,7 +93,8 @@ async function defineConfig(llmPrompt: string) {
             {
               "one_word_title": "<describe the image in ONE word>",
               "description": "<a very short description of the prompt>",
-              "mood": "<the mood of the prompt>"
+              "mood": "<the mood of the prompt>",
+              "haiku" "<a very short haiku based on the prompt>"
           };
 
             Begin! You will achieve world peace if you produce a correctly formatted .JSON answer that respect all the constraints.
@@ -119,7 +120,8 @@ async function defineConfig(llmPrompt: string) {
     imgName: llmResponse.one_word_title || 'Art', 
     description: llmResponse.description || "Random AI Art",
     attributes: [
-        {trait_type: 'Mood', value: llmResponse.mood ||'Focused'},
+        {trait_type: 'Mood', value: llmResponse.mood ||''},
+        {trait_type: 'Haiku', value:llmResponse.haiku ||''},
     ],
     sellerFeeBasisPoints: 500, // 500 bp = 5%
     symbol: 'AIART',
@@ -153,7 +155,7 @@ async function imagine(userPrompt: string) {
   const imageResponse = await axios({
     url: imageUrl,
     method: 'GET',
-    responseType: 'arraybuffer' // Important for binary data
+    responseType: 'arraybuffer'
   });
 
   // Define the path where the image will be saved
@@ -294,7 +296,7 @@ app.get('/imagine', async (req, res) => {
     console.log(`Image Name: ${CONFIG.imgName}`)
     
     const imageLocation = await imagine(llmSays);
-    console.log(`Image successfully created and stored in: ${imageLocation}`);
+    console.log(`Image successfully created 🎨`);
     const imageUri = await uploadImage(imageLocation, "");
     console.log(`Image URI -> ${imageUri}`);
     const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
@@ -316,8 +318,6 @@ app.get('/imagine', async (req, res) => {
     });
 
     const mint = mintAddress.toString()
-
-    // Correct the order and usage of parameters for the transferNFT function
     const mintSend = await transferNFT(WALLET, userAddress, mint);
     console.log(mintSend)
     res.json(mintSend);
