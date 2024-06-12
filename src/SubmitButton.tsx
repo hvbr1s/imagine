@@ -1,18 +1,19 @@
 import { FC } from 'react';
-import * as fs from 'graceful-fs';
 import { useAnchorWallet, useConnection } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
 import idl from './public/pda_account.json';
+import { Connection, clusterApiUrl } from '@solana/web3.js';
 
 interface SubmitButtonProps {
   isProcessing: boolean;
   setIsProcessing: (isProcessing: boolean) => void;
 }
-
 export const SubmitButton: FC<SubmitButtonProps> = ({ isProcessing, setIsProcessing }) => {
-  const { connection } = useConnection();
+  // const { connection } = useConnection();
+  const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
   const anchorWallet = useAnchorWallet();
+  const pdaSeed = "coloroffire";
 
   const onClick = async () => {
     if (!connection || !anchorWallet || isProcessing) return;
@@ -24,7 +25,7 @@ export const SubmitButton: FC<SubmitButtonProps> = ({ isProcessing, setIsProcess
       const program = new anchor.Program(idl as anchor.Idl, provider);
 
       const [pdaAccount, bump] = await anchor.web3.PublicKey.findProgramAddress(
-        [Buffer.from(process.env.PDA_SEED!), anchorWallet.publicKey.toBuffer()],
+        [Buffer.from(pdaSeed!), anchorWallet.publicKey.toBuffer()],
         program.programId
       );
 

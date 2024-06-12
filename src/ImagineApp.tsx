@@ -5,12 +5,17 @@ import { PhantomWalletAdapter, SolflareWalletAdapter} from '@solana/wallet-adapt
 import { WalletModalProvider, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import { useWallet } from '@solana/wallet-adapter-react';
+import SubmitButton from './SubmitButton';
 
 interface TransferDetails {
     message: string;
     sender: string;
     receiver: string;
     transaction: string;
+}
+
+interface ImagineAppProviderProps {
+  children: React.ReactNode;
 }
 
 const wallets = [
@@ -93,15 +98,7 @@ const ImagineApp: React.FC = () => {
               readOnly={!!connected && !!publicKey}
             />
           </div>
-          <div>
-            <button
-              type="submit"
-              disabled={isProcessing}
-              className={`w-full py-2 px-4 ${isProcessing ? 'bg-blue-500' : 'bg-green-600 hover:bg-green-700'} text-white font-semibold rounded-md shadow-md focus:outline-none`}
-            >
-              {isProcessing ? 'Processing...' : 'Submit'}
-            </button>
-          </div>
+          <SubmitButton isProcessing={isProcessing} setIsProcessing={setIsProcessing} />
         </form>
         {transferDetails && ( 
           <div className="mt-4 text-sm">
