@@ -5,6 +5,7 @@ import { PhantomWalletAdapter, SolflareWalletAdapter} from '@solana/wallet-adapt
 import { WalletModalProvider, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import { useWallet } from '@solana/wallet-adapter-react';
+import SubmitButton from './SubmitButton';
 
 interface TransferDetails {
     message: string;
@@ -13,15 +14,15 @@ interface TransferDetails {
     transaction: string;
 }
 
-interface ImagineAppProps {
-  children?: React.ReactNode; 
+interface ImagineAppProviderProps {
+  children: React.ReactNode;
 }
 
 const wallets = [
   new PhantomWalletAdapter(),
 ];
 
-const ImagineApp: React.FC<ImagineAppProps> = ({ children }) => { 
+const ImagineApp: React.FC = () => {
   const [userPrompt, setUserPrompt] = useState('');
   const [userAddress, setUserAddress] = useState('');
   const [transferDetails, setTransferDetails] = useState<TransferDetails | null>(null);
@@ -97,15 +98,7 @@ const ImagineApp: React.FC<ImagineAppProps> = ({ children }) => {
               readOnly={!!connected && !!publicKey}
             />
           </div>
-          <div>
-            <button
-              type="submit"
-              disabled={isProcessing}
-              className={`w-full py-2 px-4 ${isProcessing ? 'bg-blue-500' : 'bg-green-600 hover:bg-green-700'} text-white font-semibold rounded-md shadow-md focus:outline-none`}
-            >
-              {isProcessing ? 'Processing...' : 'Submit'}
-            </button>
-          </div>
+          <SubmitButton isProcessing={isProcessing} setIsProcessing={setIsProcessing} />
         </form>
         {transferDetails && ( 
           <div className="mt-4 text-sm">
@@ -118,16 +111,16 @@ const ImagineApp: React.FC<ImagineAppProps> = ({ children }) => {
   );
 };
 
-const ImagineAppProvider: React.FC<ImagineAppProps> = ({ children }) => {
+const AppWrapper: React.FC = () => {
   return (
     <ConnectionProvider endpoint={clusterApiUrl('mainnet-beta')}>
       <WalletProvider wallets={wallets}>
         <WalletModalProvider>
-          {children}
+          <ImagineApp />
         </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
-};
+}
 
-export default ImagineAppProvider;
+export default AppWrapper;

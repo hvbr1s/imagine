@@ -9,7 +9,6 @@ interface SubmitButtonProps {
   isProcessing: boolean;
   setIsProcessing: (isProcessing: boolean) => void;
 }
-
 export const SubmitButton: FC<SubmitButtonProps> = ({ isProcessing, setIsProcessing }) => {
   const { connection } = useConnection();
   const anchorWallet = useAnchorWallet();
