@@ -1,5 +1,4 @@
 import { FC } from 'react';
-import * as fs from 'graceful-fs';
 import { useAnchorWallet, useConnection } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
