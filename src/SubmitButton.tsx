@@ -1,11 +1,9 @@
-import React, { FC, useMemo } from 'react';
+import { FC } from 'react';
+import * as fs from 'graceful-fs';
 import { useAnchorWallet, useConnection } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
-import { Idl } from '@coral-xyz/anchor';
-
-const idl = JSON.parse(require("fs").readFileSync("./idl/pda_account.json", "utf8"));
-const PROGRAM_ID = 'CrVHAr67bccFAPH1WXB5jLxfB7vhphwinMDzLAh5NcdM';
+import idl from './public/pda_account.json';
 
 interface SubmitButtonProps {
   isProcessing: boolean;
@@ -23,7 +21,7 @@ export const SubmitButton: FC<SubmitButtonProps> = ({ isProcessing, setIsProcess
 
     try {
       const provider = new anchor.AnchorProvider(connection, anchorWallet, anchor.AnchorProvider.defaultOptions());
-      const program = new anchor.Program(idl, provider);
+      const program = new anchor.Program(idl as anchor.Idl, provider);
 
       const [pdaAccount, bump] = await anchor.web3.PublicKey.findProgramAddress(
         [Buffer.from(process.env.PDA_SEED!), anchorWallet.publicKey.toBuffer()],
@@ -32,7 +30,7 @@ export const SubmitButton: FC<SubmitButtonProps> = ({ isProcessing, setIsProcess
 
       const treasuryPublicKey = new PublicKey('ARTpmCQfGQ7W5gN9dHkSXPErCzoBWSp8qAshKuZetosE');
 
-      await program.methods
+      await (program.methods as any)
         .initializeDepositWithdraw()
         .accounts({
           user: anchorWallet.publicKey,

@@ -1,4 +1,4 @@
-import * as fs from 'fs';
+import * as fs from 'graceful-fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -10,7 +10,7 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metaplex-foundation/js";
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
 import secret from './secrets/Art6oYTueZBEHoBQKVyHcCVkzkLBjpJ5JwwSrnzFUXyq.json';
-const cors = require('cors');
+import cors from 'cors';
 
 // Load environment variable
 dotenv.config();

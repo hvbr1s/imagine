@@ -13,11 +13,15 @@ interface TransferDetails {
     transaction: string;
 }
 
+interface ImagineAppProps {
+  children?: React.ReactNode; 
+}
+
 const wallets = [
   new PhantomWalletAdapter(),
 ];
 
-const ImagineApp: React.FC = () => {
+const ImagineApp: React.FC<ImagineAppProps> = ({ children }) => { 
   const [userPrompt, setUserPrompt] = useState('');
   const [userAddress, setUserAddress] = useState('');
   const [transferDetails, setTransferDetails] = useState<TransferDetails | null>(null);
@@ -114,16 +118,16 @@ const ImagineApp: React.FC = () => {
   );
 };
 
-const AppWrapper: React.FC = () => {
+const ImagineAppProvider: React.FC<ImagineAppProps> = ({ children }) => {
   return (
     <ConnectionProvider endpoint={clusterApiUrl('mainnet-beta')}>
       <WalletProvider wallets={wallets}>
         <WalletModalProvider>
-          <ImagineApp />
+          {children}
         </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
-}
+};
 
-export default AppWrapper;
+export default ImagineAppProvider;
