@@ -40,12 +40,6 @@ const gpt_client = new OpenAI({
 });
 const gpt_llm = "gpt-4o"
 
-// const Groq = require("groq-sdk");
-// const groq_client = new Groq({
-//     apiKey: process.env['GROQ_API_KEY']
-// });
-// const groq_llm = "llama3-8b-8192"
-
 async function generatePrompt(userPrompt: string) {
   const llmResponse = await gpt_client.chat.completions.create({
       messages: [
@@ -243,6 +237,12 @@ async function transferNFT(
   const senderAddress = senderKeypair.publicKey.toString()
   const destination = new PublicKey(recipientPublicKey);
   const mint = new PublicKey(mintAddress)
+  const accountInfo = await SOLANA_CONNECTION.getAccountInfo(new PublicKey(mint));
+  if (accountInfo) {
+    console.log(`Current Owner of the NFT: ${accountInfo.owner.toString()}`);
+  } else {
+    console.log('Account info is null.');
+  }
   const transferTransactionBuilder = await METAPLEX.nfts().builders().transfer({
       nftOrSft: {address: mint, tokenStandard: TokenStandard.ProgrammableNonFungible},
       authority: WALLET,

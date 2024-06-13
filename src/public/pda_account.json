@@ -1,5 +1,5 @@
 {
-  "address": "CrVHAr67bccFAPH1WXB5jLxfB7vhphwinMDzLAh5NcdM",
+  "address": "DpTtSJ135oXPpWjUuRsLq6chZC2Qytf9Bsmk6oZUWvrb",
   "metadata": {
     "name": "pda_account",
     "version": "0.1.0",
@@ -166,7 +166,12 @@
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "pda_seed",
+          "type": "string"
+        }
+      ]
     },
     {
       "name": "withdraw",

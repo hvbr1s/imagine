@@ -14,9 +14,9 @@ interface TransferDetails {
     transaction: string;
 }
 
-interface ImagineAppProviderProps {
-  children: React.ReactNode;
-}
+// interface ImagineAppProviderProps {
+//   children: React.ReactNode;
+// }
 
 const wallets = [
   new PhantomWalletAdapter(),
@@ -38,8 +38,7 @@ const ImagineApp: React.FC = () => {
   const handlePromptChange = (e: React.ChangeEvent<HTMLInputElement>) => setUserPrompt(e.target.value);
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => setUserAddress(e.target.value);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleTransactionSuccess = async () => {
     setIsProcessing(true);
     try {
       const cleanedAddress = userAddress.trim();
@@ -72,7 +71,7 @@ const ImagineApp: React.FC = () => {
       </div>
       <div className="max-w-md w-full bg-gray-900 p-6 rounded-lg shadow-lg">
         <h1 className="text-2xl font-bold mb-4 text-center">🌈Imagin' App🦄</h1>
-        <form id="imagine-form" className="space-y-4" onSubmit={handleSubmit}>
+        <form id="imagine-form" className="space-y-4" onSubmit={handleTransactionSuccess}>
           <div>
             <label htmlFor="user-prompt" className="block text-sm font-medium text-gray-300">Your Prompt</label>
             <input
@@ -98,7 +97,12 @@ const ImagineApp: React.FC = () => {
               readOnly={!!connected && !!publicKey}
             />
           </div>
-          <SubmitButton isProcessing={isProcessing} setIsProcessing={setIsProcessing} />
+          <SubmitButton 
+          isProcessing={isProcessing} 
+          setIsProcessing={setIsProcessing} 
+          userAddress={userAddress}
+          onTransactionSuccess={handleTransactionSuccess}
+          />
         </form>
         {transferDetails && ( 
           <div className="mt-4 text-sm">
@@ -122,5 +126,4 @@ const AppWrapper: React.FC = () => {
     </ConnectionProvider>
   );
 }
-
 export default AppWrapper;
