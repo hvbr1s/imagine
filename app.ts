@@ -40,12 +40,6 @@ const gpt_client = new OpenAI({
 });
 const gpt_llm = "gpt-4o"
 
-// const Groq = require("groq-sdk");
-// const groq_client = new Groq({
-//     apiKey: process.env['GROQ_API_KEY']
-// });
-// const groq_llm = "llama3-8b-8192"
-
 async function generatePrompt(userPrompt: string) {
   const llmResponse = await gpt_client.chat.completions.create({
       messages: [
