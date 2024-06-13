@@ -237,6 +237,12 @@ async function transferNFT(
   const senderAddress = senderKeypair.publicKey.toString()
   const destination = new PublicKey(recipientPublicKey);
   const mint = new PublicKey(mintAddress)
+  const accountInfo = await SOLANA_CONNECTION.getAccountInfo(new PublicKey(mint));
+  if (accountInfo) {
+    console.log(`Current Owner of the NFT: ${accountInfo.owner.toString()}`);
+  } else {
+    console.log('Account info is null.');
+  }
   const transferTransactionBuilder = await METAPLEX.nfts().builders().transfer({
       nftOrSft: {address: mint, tokenStandard: TokenStandard.ProgrammableNonFungible},
       authority: WALLET,
