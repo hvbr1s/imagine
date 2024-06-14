@@ -18,7 +18,6 @@ export const SubmitButton: FC<SubmitButtonProps> = ({
 }) => {
     const connection = new Connection(clusterApiUrl('devnet'));
     const wallet = useWallet();
-    const pdaSeed = "coloroffire";
 
     const onClick = async () => {
       console.log('User Address:', userAddress)
@@ -28,29 +27,31 @@ export const SubmitButton: FC<SubmitButtonProps> = ({
 
       try {
         const userPublicKey = new web3.PublicKey(userAddress);
-        const [pdaAccount] = await web3.PublicKey.findProgramAddress(
-          [Buffer.from(pdaSeed), userPublicKey.toBuffer()],
-          new web3.PublicKey("DpTtSJ135oXPpWjUuRsLq6chZC2Qytf9Bsmk6oZUWvrb")
-        );
-        console.log('PDA Account:', pdaAccount.toString());
-        const treasuryPublicKey = new web3.PublicKey('ARTpmCQfGQ7W5gN9dHkSXPErCzoBWSp8qAshKuZetosE');
-        const systemProgramId = web3.SystemProgram.programId;
+        const treasuryPublicKey = new web3.PublicKey('Art6oYTueZBEHoBQKVyHcCVkzkLBjpJ5JwwSrnzFUXyq');
 
+        // // Transfer to PDA
+        // const pdaSeed = "coloroffire";
+        // const [pdaAccount] = await web3.PublicKey.findProgramAddress(
+        //   [Buffer.from(pdaSeed), userPublicKey.toBuffer()],
+        //   new web3.PublicKey("DpTtSJ135oXPpWjUuRsLq6chZC2Qytf9Bsmk6oZUWvrb")
+        // );
+        // console.log('PDA Account:', pdaAccount.toString());
+        // const systemProgramId = web3.SystemProgram.programId;
+        // // const instruction = new web3.TransactionInstruction({
+        // //   keys: [
+        // //     { pubkey: userPublicKey, isSigner: true, isWritable: true },
+        // //     { pubkey: pdaAccount, isSigner: false, isWritable: true },
+        // //     { pubkey: treasuryPublicKey, isSigner: false, isWritable: true },
+        // //     { pubkey: systemProgramId, isSigner: false, isWritable: false }
+        // //   ],
+        // //   programId: new web3.PublicKey("DpTtSJ135oXPpWjUuRsLq6chZC2Qytf9Bsmk6oZUWvrb")
+        // // });
+        
         // Create a new transaction
         const transaction = new web3.Transaction();
-        // const instruction = new web3.TransactionInstruction({
-        //   keys: [
-        //     { pubkey: userPublicKey, isSigner: true, isWritable: true },
-        //     { pubkey: pdaAccount, isSigner: false, isWritable: true },
-        //     { pubkey: treasuryPublicKey, isSigner: false, isWritable: true },
-        //     { pubkey: systemProgramId, isSigner: false, isWritable: false }
-        //   ],
-        //   programId: new web3.PublicKey("DpTtSJ135oXPpWjUuRsLq6chZC2Qytf9Bsmk6oZUWvrb")
-        // });
-
         const instruction = web3.SystemProgram.transfer({        
           fromPubkey: userPublicKey,
-          toPubkey: pdaAccount,
+          toPubkey: treasuryPublicKey,
           lamports: 5000000 // Deposit 0.05 SOL in lamports
         });
 
@@ -79,7 +80,7 @@ export const SubmitButton: FC<SubmitButtonProps> = ({
         onClick={onClick}
         className={`w-full py-2 px-4 ${isProcessing ? 'bg-blue-500' : 'bg-green-600 hover:bg-green-700'} text-white font-semibold rounded-md shadow-md focus:outline-none`}
       >
-        {isProcessing ? 'Processing...' : 'Submit'}
+        {isProcessing ? 'Processing, this might take a few minutes...' : 'Submit'}
       </button>
     );
   };
