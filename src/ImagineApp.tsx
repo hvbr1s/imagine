@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { PhantomWalletAdapter, SolflareWalletAdapter} from '@solana/wallet-adapter-wallets';
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
 import { WalletModalProvider, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -13,10 +13,6 @@ interface TransferDetails {
     receiver: string;
     transaction: string;
 }
-
-// interface ImagineAppProviderProps {
-//   children: React.ReactNode;
-// }
 
 const wallets = [
   new PhantomWalletAdapter(),

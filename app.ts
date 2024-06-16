@@ -9,7 +9,7 @@ import OpenAI from 'openai';
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metaplex-foundation/js";
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
-import secret from './secrets/Art6oYTueZBEHoBQKVyHcCVkzkLBjpJ5JwwSrnzFUXyq.json';
+import secret from './secrets/ARteGRKBALtmziULDME9vMEJGUS6SoxSajPfkfDeRy5S.json';
 import cors from 'cors';
 
 // Load environment variable
