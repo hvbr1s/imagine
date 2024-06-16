@@ -35,9 +35,7 @@ const METAPLEX = Metaplex.make(SOLANA_CONNECTION)
 
 
 ///// AI LOGIC
-const gpt_client = new OpenAI({
-  apiKey: process.env['OPENAI_API_KEY'],
-});
+const gpt_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
 const gpt_llm = "gpt-4o"
 
 async function generatePrompt(userPrompt: string) {
