@@ -23,5 +23,5 @@
   "include": [
     "src/**/*",  // Cover all subdirectories and files in src
     "app.ts"  // Include specific TypeScript file
-  ]
+, "webpack.config.js"  ]
 }

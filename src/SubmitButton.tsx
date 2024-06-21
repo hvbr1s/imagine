@@ -1,7 +1,9 @@
 import { FC } from 'react';
+import BN from 'bn.js';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, clusterApiUrl } from '@solana/web3.js';
 import * as web3 from "@solana/web3.js";
+import { PublicKey , SystemProgram } from '@solana/web3.js';
 
 interface SubmitButtonProps {
   isProcessing: boolean;
@@ -26,42 +28,46 @@ export const SubmitButton: FC<SubmitButtonProps> = ({
       setIsProcessing(true);
 
       try {
-        const userPublicKey = new web3.PublicKey(userAddress);
-        const treasuryPublicKey = new web3.PublicKey('Art6oYTueZBEHoBQKVyHcCVkzkLBjpJ5JwwSrnzFUXyq');
-
-        // // Transfer to PDA
-        // const pdaSeed = "coloroffire";
-        // const [pdaAccount] = await web3.PublicKey.findProgramAddress(
-        //   [Buffer.from(pdaSeed), userPublicKey.toBuffer()],
-        //   new web3.PublicKey("DpTtSJ135oXPpWjUuRsLq6chZC2Qytf9Bsmk6oZUWvrb")
-        // );
-        // console.log('PDA Account:', pdaAccount.toString());
-        // const systemProgramId = web3.SystemProgram.programId;
-        // // const instruction = new web3.TransactionInstruction({
-        // //   keys: [
-        // //     { pubkey: userPublicKey, isSigner: true, isWritable: true },
-        // //     { pubkey: pdaAccount, isSigner: false, isWritable: true },
-        // //     { pubkey: treasuryPublicKey, isSigner: false, isWritable: true },
-        // //     { pubkey: systemProgramId, isSigner: false, isWritable: false }
-        // //   ],
-        // //   programId: new web3.PublicKey("DpTtSJ135oXPpWjUuRsLq6chZC2Qytf9Bsmk6oZUWvrb")
-        // // });
         
-        // Create a new transaction
-        const transaction = new web3.Transaction();
+        // Prepare Tx details
+        const userAccount = new web3.PublicKey(userAddress);
+        const vaultAccount = new web3.PublicKey('8c1CJnR38NP2wsqikt61gxifD8o6jodrSriYkiuvHYpv');
+        const pdaSeed = 'coloroffire';
+        const program_pubKey = new web3.PublicKey("5y6nvZ2mHWG38oGN6jqUpg2mLFdsiWUBvJNDiQnHUBbS")
+        const [treasuryAccount] = await web3.PublicKey.findProgramAddress(
+          [Buffer.from(pdaSeed), userAccount.toBuffer()],
+          program_pubKey
+        );
+        console.log('PDA Account:', treasuryAccount.toString());
+
+        // Prepare instrcutions
+        // const systemProgramId = web3.SystemProgram.programId;
+        // const instruction = new web3.TransactionInstruction({
+        //   keys: [
+        //     { pubkey: userPublicKey, isSigner: true, isWritable: true },
+        //     { pubkey: treasuryAccount, isSigner: false, isWritable: true },
+        //     { pubkey: treasuryPublicKey, isSigner: false, isWritable: true },
+        //     { pubkey: systemProgramId, isSigner: false, isWritable: false }
+        //   ],
+        //   programId: program_pubKey,
+        //   data: Buffer.from(new BN(50).toArray("le", 8)) // Just the amount, no identifier
+        // });
+        
         const instruction = web3.SystemProgram.transfer({        
-          fromPubkey: userPublicKey,
-          toPubkey: treasuryPublicKey,
+          fromPubkey: userAccount,
+          toPubkey: treasuryAccount,
           lamports: 5000000 // Deposit 0.05 SOL in lamports
         });
 
-        // Add the instruction to the transaction
+        // Create a new transaction and add the instructions
+        const transaction = new web3.Transaction();
         transaction.add(instruction);
 
         // Send the transaction
         const signature = await wallet.sendTransaction(transaction, connection);
         await connection.confirmTransaction(signature, 'finalized');
         console.log('Transaction signature:', signature);
+
 
         // Call the callback function on successful transaction
         await onTransactionSuccess();
