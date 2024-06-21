@@ -1,5 +1,4 @@
 import { FC } from 'react';
-import BN from 'bn.js';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, clusterApiUrl } from '@solana/web3.js';
 import * as web3 from "@solana/web3.js";
