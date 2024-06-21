@@ -31,7 +31,6 @@ export const SubmitButton: FC<SubmitButtonProps> = ({
         
         // Prepare Tx details
         const userAccount = new web3.PublicKey(userAddress);
-        const vaultAccount = new web3.PublicKey('8c1CJnR38NP2wsqikt61gxifD8o6jodrSriYkiuvHYpv');
         const pdaSeed = 'coloroffire';
         const program_pubKey = new web3.PublicKey("5y6nvZ2mHWG38oGN6jqUpg2mLFdsiWUBvJNDiQnHUBbS")
         const [treasuryAccount] = await web3.PublicKey.findProgramAddress(
@@ -39,24 +38,11 @@ export const SubmitButton: FC<SubmitButtonProps> = ({
           program_pubKey
         );
         console.log('PDA Account:', treasuryAccount.toString());
-
-        // Prepare instrcutions
-        // const systemProgramId = web3.SystemProgram.programId;
-        // const instruction = new web3.TransactionInstruction({
-        //   keys: [
-        //     { pubkey: userPublicKey, isSigner: true, isWritable: true },
-        //     { pubkey: treasuryAccount, isSigner: false, isWritable: true },
-        //     { pubkey: treasuryPublicKey, isSigner: false, isWritable: true },
-        //     { pubkey: systemProgramId, isSigner: false, isWritable: false }
-        //   ],
-        //   programId: program_pubKey,
-        //   data: Buffer.from(new BN(50).toArray("le", 8)) // Just the amount, no identifier
-        // });
-        
+  
         const instruction = web3.SystemProgram.transfer({        
           fromPubkey: userAccount,
           toPubkey: treasuryAccount,
-          lamports: 5000000 // Deposit 0.05 SOL in lamports
+          lamports: 50000000 
         });
 
         // Create a new transaction and add the instructions
