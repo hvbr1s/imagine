@@ -1,8 +1,6 @@
-import { FC } from 'react';
+import React, { useState, useEffect, FC } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, clusterApiUrl } from '@solana/web3.js';
-import * as web3 from "@solana/web3.js";
-import { PublicKey , SystemProgram } from '@solana/web3.js';
 
 interface SubmitButtonProps {
   isProcessing: boolean;
@@ -11,69 +9,65 @@ interface SubmitButtonProps {
   onTransactionSuccess: () => Promise<void>;
 }
 
-export const SubmitButton: FC<SubmitButtonProps> = ({ 
+const SubmitButton: FC<SubmitButtonProps> = ({ 
   isProcessing, 
   setIsProcessing, 
   userAddress,
-  onTransactionSuccess,
+  onTransactionSuccess 
 }) => {
-    const connection = new Connection(clusterApiUrl('devnet'));
-    const wallet = useWallet();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
+  const connection = new Connection(clusterApiUrl('devnet'));
+  const wallet = useWallet();
 
-    const onClick = async () => {
-      console.log('User Address:', userAddress)
-      if (!connection || !wallet || isProcessing) return;
+  useEffect(() => {
+    if (isProcessing) {
+      const eventSource = new EventSource('http://localhost:8800/progress');
+      
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setCurrentStep(data.step);
+        setProgressMessage(data.message);
+      };
 
-      setIsProcessing(true);
+      return () => {
+        eventSource.close();
+      };
+    }
+  }, [isProcessing]);
 
-      try {
-        
-        // Prepare Tx details
-        const userAccount = new web3.PublicKey(userAddress);
-        const pdaSeed = 'coloroffire';
-        const program_pubKey = new web3.PublicKey("5y6nvZ2mHWG38oGN6jqUpg2mLFdsiWUBvJNDiQnHUBbS")
-        const [treasuryAccount] = await web3.PublicKey.findProgramAddress(
-          [Buffer.from(pdaSeed), userAccount.toBuffer()],
-          program_pubKey
-        );
-        console.log('PDA Account:', treasuryAccount.toString());
-  
-        const instruction = web3.SystemProgram.transfer({        
-          fromPubkey: userAccount,
-          toPubkey: treasuryAccount,
-          lamports: 50000000 
-        });
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (!connection || !wallet || isProcessing) return;
 
-        // Create a new transaction and add the instructions
-        const transaction = new web3.Transaction();
-        transaction.add(instruction);
-
-        // Send the transaction
-        const signature = await wallet.sendTransaction(transaction, connection);
-        await connection.confirmTransaction(signature, 'finalized');
-        console.log('Transaction signature:', signature);
-
-
-        // Call the callback function on successful transaction
-        await onTransactionSuccess();
-
-      } catch (error) {
-        console.error('Transaction error:', error);
-        setIsProcessing(false);
-      } finally {
-        console.log('Transaction completed');
-      }
-    };
-    return (
-      <button
-        type="button"
-        disabled={isProcessing}
-        onClick={onClick}
-        className={`w-full py-2 px-4 ${isProcessing ? 'bg-blue-500' : 'bg-green-600 hover:bg-green-700'} text-white font-semibold rounded-md shadow-md focus:outline-none`}
-      >
-        {isProcessing ? 'Processing, this might take a few minutes...' : 'Submit'}
-      </button>
-    );
+    setIsProcessing(true);
+    try {
+      // You can add any necessary Solana transaction logic here if needed
+      await onTransactionSuccess();
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
+
+  const getButtonColor = () => {
+    const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500', 'bg-purple-500'];
+    return colors[currentStep] || colors[0];
+  };
+
+  return (
+    <button
+      type="submit"
+      onClick={handleSubmit}
+      disabled={isProcessing || !userAddress}
+      className={`mt-4 w-full py-2 px-4 ${getButtonColor()} text-white font-bold rounded-md shadow-md ${
+        isProcessing || !userAddress ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+      }`}
+    >
+      {isProcessing ? progressMessage : 'Submit'}
+    </button>
+  );
+};
 
 export default SubmitButton;

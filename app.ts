@@ -11,6 +11,8 @@ import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metap
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
 import secret from './secrets/ARteGRKBALtmziULDME9vMEJGUS6SoxSajPfkfDeRy5S.json';
 import cors from 'cors';
+import { EventEmitter } from 'events';
+
 
 // Load environment variable
 dotenv.config();
@@ -33,6 +35,27 @@ const METAPLEX = Metaplex.make(SOLANA_CONNECTION)
         timeout: 60000,
     }));
 
+///// EVENT LOGIC
+
+const progressEmitter = new EventEmitter();
+
+app.get('/progress', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const sendProgress = (data:any) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  progressEmitter.on('progress', sendProgress);
+
+  req.on('close', () => {
+    progressEmitter.off('progress', sendProgress);
+  });
+});
 
 ///// AI LOGIC
 const gpt_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
@@ -127,7 +150,6 @@ async function defineConfig(llmPrompt: string, randomNumber: number) {
 
 ///// NFT LOGIC
 async function uploadImage(filePath: string,fileName: string): Promise<string>  {
-  console.log(`Step 1 - Uploading Image🔼`);
   const imgBuffer = fs.readFileSync(filePath + fileName);
   const imgMetaplexFile = toMetaplexFile(imgBuffer,fileName);
   const imgUri = await METAPLEX.storage().upload(imgMetaplexFile);
@@ -158,7 +180,6 @@ async function imagine(userPrompt: string, randomNumber: number) {
 }
 
 async function uploadMetadata(imgUri: string, imgType: string, nftName: string, description: string, attributes: {trait_type: string, value: string}[]) {
-  console.log(`Step 2 - Uploading Metadata⏫`);
   const { uri } = await METAPLEX
   .nfts()
   .uploadMetadata({
@@ -186,7 +207,6 @@ async function mintProgrammableNft(
   creators: { address: PublicKey, share: number }[]
 )
 {
-  console.log(`Step 3 - Minting pNFT🔨`);
   try {
     const transactionBuilder = await METAPLEX
     .nfts()
@@ -231,7 +251,6 @@ async function transferNFT(
   recipientPublicKey: string,
   mintAddress: string
 ) {
-  console.log(`Step 4 - Transferring pNFT to ${recipientPublicKey} 📬`);
   const senderAddress = senderKeypair.publicKey.toString()
   const destination = new PublicKey(recipientPublicKey);
   const mint = new PublicKey(mintAddress)
@@ -286,6 +305,7 @@ app.get('/imagine', async (req, res) => {
   console.log(`Received request -> Prompt: ${userPrompt}, Address: ${userAddress}`);
 
   try {
+    progressEmitter.emit('progress', { step: 0, message: "Let's begin!" });
     // Assign unique number to project
     const randomNumber = Math.floor(Math.random() * 10000);
     const llmSays = await generatePrompt(userPrompt);
@@ -294,10 +314,16 @@ app.get('/imagine', async (req, res) => {
     const CONFIG = await defineConfig(llmSays, randomNumber);
     console.log(`Image Name -> ${CONFIG.imgName}`)
     
-    const imageLocation = await imagine(llmSays, randomNumber);
     console.log(`Image successfully created 🎨`);
+    progressEmitter.emit('progress', { step: 1, message: 'Image successfully created 🎨' });
+    const imageLocation = await imagine(llmSays, randomNumber);
+
+    console.log(`Uploading your Image🔼`);
+    progressEmitter.emit('progress', { step: 2, message: 'Uploading your Image🔼' });
     const imageUri = await uploadImage(imageLocation, "");
-    console.log(`Image URI -> ${imageUri}`);
+
+    console.log(`Uploading the Metadata⏫`);
+    progressEmitter.emit('progress', { step: 3, message: 'Uploading the Metadata⏫' });
     const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
     console.log(`Metadata URI -> ${metadataUri}`);
 
@@ -309,14 +335,20 @@ app.get('/imagine', async (req, res) => {
         console.log(`Local image file deleted successfully 🗑️`);
       }
     });
-    // Ensure userAddress is treated as a valid recipient public key
+
+    console.log(`Minting your NFT🔨`);
+    progressEmitter.emit('progress', { step: 4, message: 'Minting your NFT🔨' });
     const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
     if (!mintAddress) {
       throw new Error("Failed to mint the NFT. Mint address is undefined.");
     }
-    const mint = mintAddress.toString()
-    const mintSend = await transferNFT(WALLET, userAddress, mint);
+    
+    console.log(`Transferring your NFT 📬`);
+    progressEmitter.emit('progress', { step: 5, message: 'Transferring your NFT 📬' });
+    const mintSend = await transferNFT(WALLET, userAddress, mintAddress.toString());
     console.log(mintSend)
+
+    // Response
     res.json(mintSend);
 
   } catch (error) {
