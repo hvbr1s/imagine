@@ -286,7 +286,7 @@ async function transferNFT(
   }
   else
     return {
-      message: "Transfer successful!🥳 Check your wallet!👀",
+      message: "Transfer successful!🥳",
       sender: `https://explorer.solana.com/address/${senderAddress}?cluster=devnet`,
       receiver: `https://explorer.solana.com/address/${recipientPublicKey}/tokens?cluster=devnet`,
       transaction: `https://explorer.solana.com/tx/${sig2}?cluster=devnet`

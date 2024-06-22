@@ -53,6 +53,7 @@ const SubmitButton: FC<SubmitButtonProps> = ({
         [Buffer.from(pdaSeed), userAccount.toBuffer()],
         program_pubKey
       );
+      console.log(`Treasury account is ${treasuryAccount}`)
 
       const instruction = web3.SystemProgram.transfer({        
         fromPubkey: userAccount,

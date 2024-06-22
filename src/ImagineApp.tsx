@@ -103,7 +103,7 @@ const ImagineApp: React.FC = () => {
         {transferDetails && ( 
           <div className="mt-4 text-sm">
             <p>{transferDetails.message}</p>
-            <p><a href={transferDetails.receiver} target="_blank" rel="noopener noreferrer">Click here</a></p>
+            <p><a href={transferDetails.receiver} target="_blank" rel="noopener noreferrer">Check your wallet here</a></p>
           </div>
         )}
       </div>
