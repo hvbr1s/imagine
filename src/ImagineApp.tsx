@@ -113,7 +113,7 @@ const ImagineApp: React.FC = () => {
 
 const AppWrapper: React.FC = () => {
   return (
-    <ConnectionProvider endpoint={clusterApiUrl('mainnet-beta')}>
+    <ConnectionProvider endpoint={clusterApiUrl('devnet')}>
       <WalletProvider wallets={wallets}>
         <WalletModalProvider>
           <ImagineApp />

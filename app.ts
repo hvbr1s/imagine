@@ -328,9 +328,9 @@ app.get('/imagine', async (req, res) => {
     const imageName = `'${CONFIG.imgName}'`
     console.log(`Image Name -> ${imageName}`)
     
-    console.log(`Image successfully created 🎨`);
-    progressEmitter.emit('progress', { step: 1, message: `Image ${imageName} successfully created 🎨` });
+    progressEmitter.emit('progress', { step: 1, message: `Creating your image ${imageName} 🎨` });
     const imageLocation = await imagine(llmSays, randomNumber);
+    console.log(`Image successfully created 🎨`);
 
     console.log(`Uploading your Image🔼`);
     progressEmitter.emit('progress', { step: 2, message: 'Uploading your Image🔼' });

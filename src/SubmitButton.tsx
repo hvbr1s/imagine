@@ -50,7 +50,7 @@ const SubmitButton: FC<SubmitButtonProps> = ({
       const pdaSeed = 'coloroffire';
       const program_pubKey = new web3.PublicKey("5y6nvZ2mHWG38oGN6jqUpg2mLFdsiWUBvJNDiQnHUBbS")
       const [treasuryAccount] = await web3.PublicKey.findProgramAddress(
-        [Buffer.from(pdaSeed), userAccount.toBuffer()],
+        [Buffer.from(pdaSeed)],
         program_pubKey
       );
       console.log(`Treasury account is ${treasuryAccount}`)
