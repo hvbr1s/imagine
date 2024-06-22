@@ -1,3 +1,4 @@
+import * as web3 from "@solana/web3.js";
 import React, { useState, useEffect, FC } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, clusterApiUrl } from '@solana/web3.js';
@@ -17,6 +18,7 @@ const SubmitButton: FC<SubmitButtonProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
+  const [isTransactionPending, setIsTransactionPending] = useState(false);
   const connection = new Connection(clusterApiUrl('devnet'));
   const wallet = useWallet();
 
@@ -36,18 +38,45 @@ const SubmitButton: FC<SubmitButtonProps> = ({
     }
   }, [isProcessing]);
 
-  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const onClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (!connection || !wallet || isProcessing) return;
+    if (!connection || !wallet || isTransactionPending || isProcessing) return;
 
-    setIsProcessing(true);
+    setIsTransactionPending(true);
+    setProgressMessage('Sending transaction...');
+
     try {
-      // You can add any necessary Solana transaction logic here if needed
+      const userAccount = new web3.PublicKey(userAddress);
+      const pdaSeed = 'coloroffire';
+      const program_pubKey = new web3.PublicKey("5y6nvZ2mHWG38oGN6jqUpg2mLFdsiWUBvJNDiQnHUBbS")
+      const [treasuryAccount] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(pdaSeed), userAccount.toBuffer()],
+        program_pubKey
+      );
+
+      const instruction = web3.SystemProgram.transfer({        
+        fromPubkey: userAccount,
+        toPubkey: treasuryAccount,
+        lamports: 50000000 
+      });
+
+      const transaction = new web3.Transaction().add(instruction);
+
+      const signature = await wallet.sendTransaction(transaction, connection);
+      console.log('Transaction sent:', signature);
+      setProgressMessage('Transaction sent, waiting for confirmation...');
+
+      await connection.confirmTransaction(signature, 'confirmed');
+      console.log('Transaction confirmed:', signature);
+
+      setIsTransactionPending(false);
+      setIsProcessing(true);
       await onTransactionSuccess();
+
     } catch (error) {
       console.error('Error:', error);
-    } finally {
-      setIsProcessing(false);
+      setProgressMessage('Transaction failed. Please try again.');
+      setIsTransactionPending(false);
     }
   };
 
@@ -56,16 +85,18 @@ const SubmitButton: FC<SubmitButtonProps> = ({
     return colors[currentStep] || colors[0];
   };
 
+  const isButtonDisabled = isTransactionPending || isProcessing || !userAddress;
+
   return (
     <button
       type="submit"
-      onClick={handleSubmit}
-      disabled={isProcessing || !userAddress}
+      onClick={onClick}
+      disabled={isButtonDisabled}
       className={`mt-4 w-full py-2 px-4 ${getButtonColor()} text-white font-bold rounded-md shadow-md ${
-        isProcessing || !userAddress ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+        isButtonDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
       }`}
     >
-      {isProcessing ? progressMessage : 'Submit'}
+      {isTransactionPending || isProcessing ? progressMessage : 'Submit'}
     </button>
   );
 };

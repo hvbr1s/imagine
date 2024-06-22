@@ -9,7 +9,6 @@ import OpenAI from 'openai';
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metaplex-foundation/js";
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
-import secret from './secrets/ARteGRKBALtmziULDME9vMEJGUS6SoxSajPfkfDeRy5S.json';
 import cors from 'cors';
 import { EventEmitter } from 'events';
 
@@ -23,10 +22,24 @@ app.use(cors());
 // The port the express app will listen on
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8800;
 
+// Function to convert private key string to Uint8Array
+function getKeypairFromEnvironment(): Keypair {
+  const privateKeyString = process.env.MINTER_PRIVATE_KEY;
+  if (!privateKeyString) {
+    throw new Error('Minter key is not set in environment variables');
+  }
+  // Convert the private key string to an array of numbers
+  const privateKeyArray = privateKeyString.split(',').map(num => parseInt(num, 10));
+  // Create a Uint8Array from the array of numbers
+  const privateKeyUint8Array = new Uint8Array(privateKeyArray);
+  // Create and return the Keypair
+  return Keypair.fromSecretKey(privateKeyUint8Array);
+}
+
 // Initiate sender wallet and connection to Solana
 const QUICKNODE_RPC = 'https://fragrant-ancient-needle.solana-devnet.quiknode.pro/71caf4b466e52b402cb9891702899d7631646396/';
 const SOLANA_CONNECTION = new Connection(QUICKNODE_RPC);
-const WALLET = Keypair.fromSecretKey(new Uint8Array(secret));
+const WALLET = getKeypairFromEnvironment();
 const METAPLEX = Metaplex.make(SOLANA_CONNECTION)
     .use(keypairIdentity(WALLET))
     .use(bundlrStorage({
@@ -305,17 +318,18 @@ app.get('/imagine', async (req, res) => {
   console.log(`Received request -> Prompt: ${userPrompt}, Address: ${userAddress}`);
 
   try {
-    progressEmitter.emit('progress', { step: 0, message: "Let's begin!" });
+    progressEmitter.emit('progress', { step: 0, message: "Let's begin! 🪄" });
     // Assign unique number to project
     const randomNumber = Math.floor(Math.random() * 10000);
     const llmSays = await generatePrompt(userPrompt);
     console.log(`LLM prompt 🤖-> ${llmSays}`);
 
     const CONFIG = await defineConfig(llmSays, randomNumber);
-    console.log(`Image Name -> ${CONFIG.imgName}`)
+    const imageName = `'${CONFIG.imgName}'`
+    console.log(`Image Name -> ${imageName}`)
     
     console.log(`Image successfully created 🎨`);
-    progressEmitter.emit('progress', { step: 1, message: 'Image successfully created 🎨' });
+    progressEmitter.emit('progress', { step: 1, message: `Image ${imageName} successfully created 🎨` });
     const imageLocation = await imagine(llmSays, randomNumber);
 
     console.log(`Uploading your Image🔼`);
