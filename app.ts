@@ -11,6 +11,8 @@ import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metap
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
 import cors from 'cors';
 import { EventEmitter } from 'events';
+import Instructor from "@instructor-ai/instructor";
+import { z } from "zod"
 
 
 // Load environment variable
@@ -71,11 +73,43 @@ app.get('/progress', (req, res) => {
 });
 
 ///// AI LOGIC
-const gpt_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
+const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
 const gpt_llm = "gpt-4o"
 
+///// Prepare Instructor
+const instructor_client = Instructor({
+  client: oai_client,
+  mode: "FUNCTIONS"
+})
+
+const UserSchema = z.object({
+  prompt: z.string(), 
+  safety: z.string().describe("Is the prompt 'safe' or 'unsafe'? An unsafe prompt contains reference to sexual violence, child abuse or scams. A safe prompt does not")
+})
+
+async function safePrompting(userPrompt: string){
+  const llmSafetyCheck = await instructor_client.chat.completions.create({
+    messages: [
+        {
+            role: "user",
+            content: userPrompt
+        }
+    ],
+    model: gpt_llm,
+    temperature: 0.0,
+    response_model: { 
+      schema: UserSchema, 
+      name: "Safety Check"
+    }
+});
+
+// Print the completion returned by the LLM.
+const safetyCheckResponse = llmSafetyCheck.safety.toLowerCase();
+return safetyCheckResponse;
+}
+
 async function generatePrompt(userPrompt: string) {
-  const llmResponse = await gpt_client.chat.completions.create({
+  const llmResponse = await oai_client.chat.completions.create({
       messages: [
           {
               role: "system",
@@ -107,7 +141,7 @@ async function generatePrompt(userPrompt: string) {
 }
 
 async function defineConfig(llmPrompt: string, randomNumber: number) {
-  const nftAttributes = await gpt_client.chat.completions.create({
+  const nftAttributes = await oai_client.chat.completions.create({
     messages: [
         {
             role: "system",
@@ -170,7 +204,7 @@ async function uploadImage(filePath: string,fileName: string): Promise<string>  
 }
 
 async function imagine(userPrompt: string, randomNumber: number) {
-  const response = await gpt_client.images.generate({
+  const response = await oai_client.images.generate({
     model: "dall-e-3",
     prompt: userPrompt + ' . Begin!',
     n: 1,
@@ -321,50 +355,65 @@ app.get('/imagine', async (req, res) => {
     progressEmitter.emit('progress', { step: 0, message: "Let's begin! 🪄" });
     // Assign unique number to project
     const randomNumber = Math.floor(Math.random() * 10000);
-    const llmSays = await generatePrompt(userPrompt);
-    console.log(`LLM prompt 🤖-> ${llmSays}`);
 
-    const CONFIG = await defineConfig(llmSays, randomNumber);
-    const imageName = `'${CONFIG.imgName}'`
-    console.log(`Image Name -> ${imageName}`)
+    // Safety check
+    const llmCheck = await safePrompting(userPrompt)
+    console.log(`The prompt is ${llmCheck}🧑‍⚖️`)
+    if (llmCheck == "safe"){
+      try{
+
+        const llmSays = await generatePrompt(userPrompt);
+        console.log(`LLM prompt 🤖-> ${llmSays}`);
     
-    progressEmitter.emit('progress', { step: 1, message: `Creating your image ${imageName} 🎨` });
-    const imageLocation = await imagine(llmSays, randomNumber);
-    console.log(`Image successfully created 🎨`);
-
-    console.log(`Uploading your Image🔼`);
-    progressEmitter.emit('progress', { step: 2, message: 'Uploading your Image🔼' });
-    const imageUri = await uploadImage(imageLocation, "");
-
-    console.log(`Uploading the Metadata⏫`);
-    progressEmitter.emit('progress', { step: 3, message: 'Uploading the Metadata⏫' });
-    const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
-    console.log(`Metadata URI -> ${metadataUri}`);
-
-    // Delete local image file
-    fs.unlink(imageLocation, (err) => {
-      if (err) {
-        console.error('Failed to delete the local image file:', err);
-      } else {
-        console.log(`Local image file deleted successfully 🗑️`);
+        const CONFIG = await defineConfig(llmSays, randomNumber);
+        const imageName = `'${CONFIG.imgName}'`
+        console.log(`Image Name -> ${imageName}`)
+        
+        progressEmitter.emit('progress', { step: 1, message: `Creating your image ${imageName} 🎨` });
+        const imageLocation = await imagine(llmSays, randomNumber);
+        console.log(`Image successfully created 🎨`);
+    
+        console.log(`Uploading your Image🔼`);
+        progressEmitter.emit('progress', { step: 2, message: 'Uploading your Image🔼' });
+        const imageUri = await uploadImage(imageLocation, "");
+    
+        console.log(`Uploading the Metadata⏫`);
+        progressEmitter.emit('progress', { step: 3, message: 'Uploading the Metadata⏫' });
+        const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
+        console.log(`Metadata URI -> ${metadataUri}`);
+    
+        // Delete local image file
+        fs.unlink(imageLocation, (err) => {
+          if (err) {
+            console.error('Failed to delete the local image file:', err);
+          } else {
+            console.log(`Local image file deleted successfully 🗑️`);
+          }
+        });
+    
+        console.log(`Minting your NFT🔨`);
+        progressEmitter.emit('progress', { step: 4, message: 'Minting your NFT🔨' });
+        const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
+        if (!mintAddress) {
+          throw new Error("Failed to mint the NFT. Mint address is undefined.");
+        }
+        
+        console.log(`Transferring your NFT 📬`);
+        progressEmitter.emit('progress', { step: 5, message: 'Transferring your NFT 📬' });
+        const mintSend = await transferNFT(WALLET, userAddress, mintAddress.toString());
+        console.log(mintSend)
+    
+        // Response
+        res.json(mintSend);
+    
+      } catch (error) {
+        console.error('Error processing request:', error);
+        res.status(500).send({ error: "Error processing the request"});
       }
-    });
-
-    console.log(`Minting your NFT🔨`);
-    progressEmitter.emit('progress', { step: 4, message: 'Minting your NFT🔨' });
-    const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
-    if (!mintAddress) {
-      throw new Error("Failed to mint the NFT. Mint address is undefined.");
+    } else {
+      console.error('Unsafe prompt detected')
+      res.status(500).send("Unsafe prompt detected");
     }
-    
-    console.log(`Transferring your NFT 📬`);
-    progressEmitter.emit('progress', { step: 5, message: 'Transferring your NFT 📬' });
-    const mintSend = await transferNFT(WALLET, userAddress, mintAddress.toString());
-    console.log(mintSend)
-
-    // Response
-    res.json(mintSend);
-
   } catch (error) {
     console.error('Error processing request:', error);
     res.status(500).send({ error: "Error processing the request"});

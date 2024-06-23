@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.0",
+    "@instructor-ai/instructor": "^1.5.0",
     "@ledgerhq/errors": "^6.16.4",
     "@ledgerhq/hw-transport": "^6.30.6",
     "@metaplex-foundation/js": "^0.18.3",

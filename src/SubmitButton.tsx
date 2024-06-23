@@ -1,7 +1,7 @@
 import * as web3 from "@solana/web3.js";
 import React, { useState, useEffect, FC } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { Connection, clusterApiUrl } from '@solana/web3.js';
+import { Connection, clusterApiUrl, PublicKey  } from '@solana/web3.js';
 
 interface SubmitButtonProps {
   isProcessing: boolean;
@@ -41,39 +41,47 @@ const SubmitButton: FC<SubmitButtonProps> = ({
   const onClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     if (!connection || !wallet || isTransactionPending || isProcessing) return;
-
+  
     setIsTransactionPending(true);
     setProgressMessage('Sending transaction...');
-
+  
     try {
       const userAccount = new web3.PublicKey(userAddress);
       const pdaSeed = 'coloroffire';
-      const program_pubKey = new web3.PublicKey("5y6nvZ2mHWG38oGN6jqUpg2mLFdsiWUBvJNDiQnHUBbS")
+      const program_pubKey = new web3.PublicKey("5y6nvZ2mHWG38oGN6jqUpg2mLFdsiWUBvJNDiQnHUBbS");
       const [treasuryAccount] = await web3.PublicKey.findProgramAddress(
         [Buffer.from(pdaSeed)],
         program_pubKey
       );
-      console.log(`Treasury account is ${treasuryAccount}`)
-
-      const instruction = web3.SystemProgram.transfer({        
-        fromPubkey: userAccount,
-        toPubkey: treasuryAccount,
-        lamports: 50000000 
-      });
-
-      const transaction = new web3.Transaction().add(instruction);
-
-      const signature = await wallet.sendTransaction(transaction, connection);
-      console.log('Transaction sent:', signature);
-      setProgressMessage('Transaction sent, waiting for confirmation...');
-
-      await connection.confirmTransaction(signature, 'confirmed');
-      console.log('Transaction confirmed:', signature);
-
-      setIsTransactionPending(false);
-      setIsProcessing(true);
-      await onTransactionSuccess();
-
+      console.log(`Treasury account is: ${treasuryAccount}`)
+  
+      // Verify that the minter account has enough lamports to mint an NFT
+      const minterPubKey = new PublicKey('3tkZqjYGmjCb2RkfciyNpNRGFqx6yRqn3oNDtcVykXFY');
+      const minterBalance = await connection.getBalance(minterPubKey);
+      console.log(`Minter balance: ${minterBalance / 1e9} SOL`);
+  
+      if (minterBalance >= 50000000) { 
+        const instruction = web3.SystemProgram.transfer({        
+          fromPubkey: userAccount,
+          toPubkey: treasuryAccount,
+          lamports: 50000000 
+        });
+  
+        const transaction = new web3.Transaction().add(instruction);
+        const signature = await wallet.sendTransaction(transaction, connection);
+        console.log('Transaction sent:', signature);
+        setProgressMessage('Transaction sent, waiting for confirmation...');
+  
+        await connection.confirmTransaction(signature, 'confirmed');
+        console.log('Transaction confirmed:', signature);
+  
+        setIsTransactionPending(false);
+        setIsProcessing(true);
+        await onTransactionSuccess();
+      } else {
+        setProgressMessage("The app is out of funds for minting NFTs, please try again later!");
+        setIsTransactionPending(false);
+      }
     } catch (error) {
       console.error('Error:', error);
       setProgressMessage('Transaction failed. Please try again.');
