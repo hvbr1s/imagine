@@ -101,7 +101,7 @@ async function safePrompting(userPrompt: string){
       schema: UserSchema, 
       name: "Safety Check"
     }
-});
+  });
 
 // Print the completion returned by the LLM.
 const safetyCheckResponse = llmSafetyCheck.safety.toLowerCase();
@@ -357,6 +357,7 @@ app.get('/imagine', async (req, res) => {
     const randomNumber = Math.floor(Math.random() * 10000);
 
     // Safety check
+    progressEmitter.emit('progress', { step: 1, message: "Checking prompt safety 👮‍♀️" });
     const llmCheck = await safePrompting(userPrompt)
     console.log(`The prompt is ${llmCheck}🧑‍⚖️`)
     if (llmCheck == "safe"){
@@ -369,16 +370,16 @@ app.get('/imagine', async (req, res) => {
         const imageName = `'${CONFIG.imgName}'`
         console.log(`Image Name -> ${imageName}`)
         
-        progressEmitter.emit('progress', { step: 1, message: `Creating your image ${imageName} 🎨` });
+        progressEmitter.emit('progress', { step: 2, message: `Creating your image ${imageName} 🎨` });
         const imageLocation = await imagine(llmSays, randomNumber);
         console.log(`Image successfully created 🎨`);
     
         console.log(`Uploading your Image🔼`);
-        progressEmitter.emit('progress', { step: 2, message: 'Uploading your Image🔼' });
+        progressEmitter.emit('progress', { step: 3, message: 'Uploading your Image🔼' });
         const imageUri = await uploadImage(imageLocation, "");
     
         console.log(`Uploading the Metadata⏫`);
-        progressEmitter.emit('progress', { step: 3, message: 'Uploading the Metadata⏫' });
+        progressEmitter.emit('progress', { step: 4, message: 'Uploading the Metadata⏫' });
         const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
         console.log(`Metadata URI -> ${metadataUri}`);
     
@@ -392,14 +393,14 @@ app.get('/imagine', async (req, res) => {
         });
     
         console.log(`Minting your NFT🔨`);
-        progressEmitter.emit('progress', { step: 4, message: 'Minting your NFT🔨' });
+        progressEmitter.emit('progress', { step: 5, message: 'Minting your NFT🔨' });
         const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
         if (!mintAddress) {
           throw new Error("Failed to mint the NFT. Mint address is undefined.");
         }
         
         console.log(`Transferring your NFT 📬`);
-        progressEmitter.emit('progress', { step: 5, message: 'Transferring your NFT 📬' });
+        progressEmitter.emit('progress', { step: 6, message: 'Transferring your NFT 📬' });
         const mintSend = await transferNFT(WALLET, userAddress, mintAddress.toString());
         console.log(mintSend)
     
