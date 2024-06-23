@@ -16,7 +16,6 @@ interface TransferDetails {
 
 const wallets = [
   new PhantomWalletAdapter(),
-  new SolflareWalletAdapter(),
 ];
 
 const ImagineApp: React.FC = () => {

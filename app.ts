@@ -76,7 +76,7 @@ app.get('/progress', (req, res) => {
 const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
 const gpt_llm = "gpt-4o"
 
-///// Prepare Instructor
+// Prepare Instructor
 const instructor_client = Instructor({
   client: oai_client,
   mode: "FUNCTIONS"
@@ -87,6 +87,7 @@ const UserSchema = z.object({
   safety: z.string().describe("Is the prompt 'safe' or 'unsafe'? An unsafe prompt contains reference to sexual violence, child abuse or scams. A safe prompt does not")
 })
 
+// Initialize safety check
 async function safePrompting(userPrompt: string){
   const llmSafetyCheck = await instructor_client.chat.completions.create({
     messages: [
@@ -426,4 +427,3 @@ app.listen(port, () => {
     console.log(`Listening at http://localhost:${port}/`);
 });
 export default app;
-
