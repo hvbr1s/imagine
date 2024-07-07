@@ -13,6 +13,7 @@ import cors from 'cors';
 import { EventEmitter } from 'events';
 import Instructor from "@instructor-ai/instructor";
 import { z } from "zod"
+import { stringify } from 'querystring';
 
 
 // Load environment variable
@@ -339,6 +340,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+app.get('/safety', async (req:any, res)=>{
+
+  const userPrompt = req.query.user_prompt
+  const check  = await safePrompting(userPrompt)
+  res.send({"safety":check})
+
+})
 
 app.get('/imagine', async (req, res) => {
   const userPrompt = req.query.user_prompt;
