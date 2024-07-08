@@ -13,6 +13,7 @@ import cors from 'cors';
 import { EventEmitter } from 'events';
 import Instructor from "@instructor-ai/instructor";
 import { z } from "zod"
+import { stringify } from 'querystring';
 
 
 // Load environment variable
@@ -103,9 +104,10 @@ async function safePrompting(userPrompt: string){
       name: "Safety Check"
     }
   });
-
+  
 // Print the completion returned by the LLM.
 const safetyCheckResponse = llmSafetyCheck.safety.toLowerCase();
+console.log(`The prompt is ${safetyCheckResponse}`)
 return safetyCheckResponse;
 }
 
@@ -340,6 +342,27 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+app.get('/safety', async (req: express.Request, res: express.Response) => {
+  try {
+    const userPrompt = req.query.user_prompt as string;
+
+    if (!userPrompt) {
+      return res.status(400).send('Missing user_prompt parameter');
+    }
+
+    const safetyCheck = await safePrompting(userPrompt);
+
+    if (safetyCheck === 'safe' || safetyCheck === 'unsafe') {
+      res.send(safetyCheck);
+    } else {
+      throw new Error(`Unexpected safety status: ${safetyCheck}`);
+    }
+  } catch (error) {
+    console.error('Error checking prompt safety:', error);
+    res.status(500).send('Error checking prompt safety');
+  }
+});
+
 app.get('/imagine', async (req, res) => {
   const userPrompt = req.query.user_prompt;
   const userAddress = req.query.address; // the user provider public address where they want to receive their NFT
@@ -357,69 +380,55 @@ app.get('/imagine', async (req, res) => {
     // Assign unique number to project
     const randomNumber = Math.floor(Math.random() * 10000);
 
-    // Safety check
-    progressEmitter.emit('progress', { step: 1, message: "Checking prompt safety 👮‍♀️" });
-    const llmCheck = await safePrompting(userPrompt)
-    console.log(`The prompt is ${llmCheck}🧑‍⚖️`)
-    if (llmCheck == "safe"){
-      try{
+    const llmSays = await generatePrompt(userPrompt);
+    console.log(`LLM prompt 🤖-> ${llmSays}`);
 
-        const llmSays = await generatePrompt(userPrompt);
-        console.log(`LLM prompt 🤖-> ${llmSays}`);
+    const CONFIG = await defineConfig(llmSays, randomNumber);
+    const imageName = `'${CONFIG.imgName}'`
+    console.log(`Image Name -> ${imageName}`)
     
-        const CONFIG = await defineConfig(llmSays, randomNumber);
-        const imageName = `'${CONFIG.imgName}'`
-        console.log(`Image Name -> ${imageName}`)
-        
-        progressEmitter.emit('progress', { step: 2, message: `Creating your image ${imageName} 🎨` });
-        const imageLocation = await imagine(llmSays, randomNumber);
-        console.log(`Image successfully created 🎨`);
-    
-        console.log(`Uploading your Image🔼`);
-        progressEmitter.emit('progress', { step: 3, message: 'Uploading your Image🔼' });
-        const imageUri = await uploadImage(imageLocation, "");
-    
-        console.log(`Uploading the Metadata⏫`);
-        progressEmitter.emit('progress', { step: 4, message: 'Uploading the Metadata⏫' });
-        const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
-        console.log(`Metadata URI -> ${metadataUri}`);
-    
-        // Delete local image file
-        fs.unlink(imageLocation, (err) => {
-          if (err) {
-            console.error('Failed to delete the local image file:', err);
-          } else {
-            console.log(`Local image file deleted successfully 🗑️`);
-          }
-        });
-    
-        console.log(`Minting your NFT🔨`);
-        progressEmitter.emit('progress', { step: 5, message: 'Minting your NFT🔨' });
-        const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
-        if (!mintAddress) {
-          throw new Error("Failed to mint the NFT. Mint address is undefined.");
-        }
-        
-        console.log(`Transferring your NFT 📬`);
-        progressEmitter.emit('progress', { step: 6, message: 'Transferring your NFT 📬' });
-        const mintSend = await transferNFT(WALLET, userAddress, mintAddress.toString());
-        console.log(mintSend)
-    
-        // Response
-        res.json(mintSend);
-    
-      } catch (error) {
-        console.error('Error processing request:', error);
-        res.status(500).send({ error: "Error processing the request"});
+    progressEmitter.emit('progress', { step: 1, message: `Creating your image ${imageName} 🎨` });
+    const imageLocation = await imagine(llmSays, randomNumber);
+    console.log(`Image successfully created 🎨`);
+
+    console.log(`Uploading your Image🔼`);
+    progressEmitter.emit('progress', { step: 2, message: 'Uploading your Image🔼' });
+    const imageUri = await uploadImage(imageLocation, "");
+
+    console.log(`Uploading the Metadata⏫`);
+    progressEmitter.emit('progress', { step: 3, message: 'Uploading the Metadata⏫' });
+    const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
+    console.log(`Metadata URI -> ${metadataUri}`);
+
+    // Delete local image file
+    fs.unlink(imageLocation, (err) => {
+      if (err) {
+        console.error('Failed to delete the local image file:', err);
+      } else {
+        console.log(`Local image file deleted successfully 🗑️`);
       }
-    } else {
-      console.error('Unsafe prompt detected')
-      res.status(500).send("Unsafe prompt detected");
+    });
+
+    console.log(`Minting your NFT🔨`);
+    progressEmitter.emit('progress', { step: 4, message: 'Minting your NFT🔨' });
+    const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
+    if (!mintAddress) {
+      throw new Error("Failed to mint the NFT. Mint address is undefined.");
     }
+    
+    console.log(`Transferring your NFT 📬`);
+    progressEmitter.emit('progress', { step: 5, message: 'Transferring your NFT 📬' });
+    const mintSend = await transferNFT(WALLET, userAddress, mintAddress.toString());
+    console.log(mintSend)
+
+    // Response
+    res.json(mintSend);
+    
   } catch (error) {
     console.error('Error processing request:', error);
     res.status(500).send({ error: "Error processing the request"});
   }
+
 });
 
 // Start the server
