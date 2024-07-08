@@ -2,23 +2,50 @@ import * as web3 from "@solana/web3.js";
 import React, { useState, useEffect, FC } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, clusterApiUrl, PublicKey  } from '@solana/web3.js';
+import fetch from 'cross-fetch'
+
 
 interface SubmitButtonProps {
   isProcessing: boolean;
   setIsProcessing: (isProcessing: boolean) => void;
   userAddress: string;
   onTransactionSuccess: () => Promise<void>;
+  userPrompt: string;
+}
+
+async function checkPromptSafety(userPrompt: string): Promise<boolean> {
+  try {
+    const response = await fetch(`http://localhost:8800/safety?user_prompt=${encodeURIComponent(userPrompt)}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const safetyStatus = await response.text();
+    
+    if (safetyStatus === 'safe') {
+      return true;
+    } else if (safetyStatus === 'unsafe') {
+      return false;
+    } else {
+      throw new Error(`Unexpected safety status: ${safetyStatus}`);
+    }
+  } catch (error) {
+    console.error('Error checking prompt safety:', error);
+    throw error;
+  }
 }
 
 const SubmitButton: FC<SubmitButtonProps> = ({ 
   isProcessing, 
   setIsProcessing, 
   userAddress,
-  onTransactionSuccess 
+  onTransactionSuccess,
+  userPrompt 
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
-  const [isTransactionPending, setIsTransactionPending] = useState(false);
+  const [isTransactionPending, setIsTransactionPending] = useState(false); 
   const connection = new Connection(clusterApiUrl('devnet'));
   const wallet = useWallet();
 
@@ -43,8 +70,17 @@ const SubmitButton: FC<SubmitButtonProps> = ({
     if (!connection || !wallet || isTransactionPending || isProcessing) return;
   
     setIsTransactionPending(true);
-    setProgressMessage('Sending transaction...');
-  
+    setProgressMessage('Checking prompt safety 👮');
+
+    const isSafe = await checkPromptSafety(userPrompt);
+    if (!isSafe) {
+      setProgressMessage('The prompt is not safe. Please try a different prompt.');
+      setIsTransactionPending(false);
+      return;
+    }
+
+    setProgressMessage('Prompt is safe. Sending transaction...');
+
     try {
       const userAccount = new web3.PublicKey(userAddress);
       const pdaSeed = 'coloroffire';
