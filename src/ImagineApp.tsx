@@ -95,9 +95,10 @@ const ImagineApp: React.FC = () => {
           </div>
           <SubmitButton 
           isProcessing={isProcessing} 
-          setIsProcessing={setIsProcessing} 
+          setIsProcessing={setIsProcessing}
           userAddress={userAddress}
           onTransactionSuccess={handleTransactionSuccess}
+          userPrompt={userPrompt}
           />
         </form>
         {transferDetails && ( 
