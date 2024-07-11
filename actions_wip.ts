@@ -444,24 +444,19 @@ app.post('/post_action', async (req: Request, res: Response) => {
     const payload: ActionPostResponse = await createPostResponse({
       fields: {
         transaction,
-        // message: `Minted your NFT to ${toPubkey.toBase58()}`,
+        //
       },
       // note: no additional signers are needed
       // signers: [],
     });
     console.log(payload)
 
-    return Response.json(payload, {
-      headers: ACTIONS_CORS_HEADERS,
-    });
+    res.status(200).json(payload);
   } catch (err) {
     console.log(err);
     let message = "An unknown error occurred";
     if (typeof err == "string") message = err;
-    return new Response(message, {
-      status: 400,
-      headers: ACTIONS_CORS_HEADERS,
-    });
+    res.status(400).json({ message: message });
   }
 });
 
