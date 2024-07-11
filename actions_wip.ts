@@ -14,6 +14,7 @@ import cors from 'cors';
 import { EventEmitter } from 'events';
 import Instructor from "@instructor-ai/instructor";
 import { z } from "zod"
+import { REPL_MODE_SLOPPY } from 'repl';
 
 const FEE_LAMPORTS = 0.05 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
 const TREASURY_ADDRESS = new PublicKey('3crhbDnPJU9xvvhUwEs8WXPqAcA9aovsbj6aRBX9bNbw');
@@ -400,23 +401,23 @@ app.options('/post_action', (req: Request, res: Response) => {
   res.header(ACTIONS_CORS_HEADERS).sendStatus(200);
 });
 
+app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
     // Construct the full URL
-    const requestUrl = new URL(req.url);
-    const { prompt, toPubkey } = validatedQueryParams(requestUrl);
+    // const requestUrl = new URL(req.url);
+    console.log(req.body);
+    const body: ActionPostRequest = req.body;
 
-    const body: ActionPostRequest = await req.json();
-
-    // validate the client provided input
-    let account: PublicKey;
+    let account : PublicKey
     try {
-      account = new PublicKey(body.account);
-    } catch (err) {
-      return new Response('Invalid "account" provided', {
+      account = new PublicKey(body.account)
+    } catch (error) {
+      return new Response('Invalid account', {
         status: 400,
-        headers: ACTIONS_CORS_HEADERS,
-      });
+        headers: ACTIONS_CORS_HEADERS
+      })
+      
     }
 
     const connection = new Connection(
@@ -428,7 +429,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: account,
-        toPubkey: toPubkey,
+        toPubkey: TREASURY_ADDRESS,
         lamports: FEE_LAMPORTS,
       }),
     );
@@ -448,6 +449,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
       // note: no additional signers are needed
       // signers: [],
     });
+    console.log(payload)
 
     return Response.json(payload, {
       headers: ACTIONS_CORS_HEADERS,
@@ -465,24 +467,16 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
 function validatedQueryParams(requestUrl: URL) {
   let toPubkey: PublicKey = TREASURY_ADDRESS;
-  let prompt: string | undefined;
+  let account: string | undefined;
 
   try {
-    if (requestUrl.searchParams.get("to")) {
-      toPubkey = new PublicKey(requestUrl.searchParams.get("to")!);
-    }
-  } catch (err) {
-    throw "Invalid input query parameter: to";
-  }
-
-  try {
-    prompt = requestUrl.searchParams.get("prompt") || undefined;
+    account = requestUrl.searchParams.get("account") || undefined;
   } catch (err) {
     throw "Invalid input query parameter: prompt";
   }
 
   return {
-    prompt,
+    account,
     toPubkey,
   };
 }
