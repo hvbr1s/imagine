@@ -14,7 +14,6 @@ import cors from 'cors';
 import { EventEmitter } from 'events';
 import Instructor from "@instructor-ai/instructor";
 import { z } from "zod"
-import { REPL_MODE_SLOPPY } from 'repl';
 
 const FEE_LAMPORTS = 0.05 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
 const TREASURY_ADDRESS = new PublicKey('3crhbDnPJU9xvvhUwEs8WXPqAcA9aovsbj6aRBX9bNbw');
@@ -370,7 +369,7 @@ app.get('/safety', async (req: express.Request, res: express.Response) => {
 app.get('/get_action', async (req, res) => {
     try {
       const payload: ActionGetResponse = {
-        icon: new URL("/logo.jpg", `http://${req.headers.host}`).toString(),
+        icon: "https://imgur.com/a/imagine-app-2YbYxXn",
         label: "Mint NFT",
         title: "Imagine Demo",
         description: "Describe and mint your own unique NFT",
@@ -378,7 +377,7 @@ app.get('/get_action', async (req, res) => {
           actions: [
             {
               label: "Mint NFT",
-              href: "http://localhost:8800/imagine?user_prompt=${prompt}",
+              href: "http://localhost:8800/post_action?user_prompt={prompt}",
               parameters: [
                 {
                   name: "prompt",
@@ -390,7 +389,7 @@ app.get('/get_action', async (req, res) => {
         }
       };
   
-      res.status(200).json(payload);
+      res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
     } catch (error) {
       console.error("Error handling GET request:", error);
       res.status(500).json({ error: "Internal Server Error" });
@@ -404,9 +403,10 @@ app.options('/post_action', (req: Request, res: Response) => {
 app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
-    // Construct the full URL
-    // const requestUrl = new URL(req.url);
-    console.log(req.body);
+
+    // Extract the user_prompt from the query parameters
+    const prompt = req.query.user_prompt as string || '';
+    console.log('User prompt:', prompt);
     const body: ActionPostRequest = req.body;
 
     let account : PublicKey
@@ -444,14 +444,14 @@ app.post('/post_action', async (req: Request, res: Response) => {
     const payload: ActionPostResponse = await createPostResponse({
       fields: {
         transaction,
-        //
+        message:"Thank you for your business!"
       },
       // note: no additional signers are needed
       // signers: [],
     });
     console.log(payload)
 
-    res.status(200).json(payload);
+    res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
   } catch (err) {
     console.log(err);
     let message = "An unknown error occurred";
@@ -459,23 +459,6 @@ app.post('/post_action', async (req: Request, res: Response) => {
     res.status(400).json({ message: message });
   }
 });
-
-function validatedQueryParams(requestUrl: URL) {
-  let toPubkey: PublicKey = TREASURY_ADDRESS;
-  let account: string | undefined;
-
-  try {
-    account = requestUrl.searchParams.get("account") || undefined;
-  } catch (err) {
-    throw "Invalid input query parameter: prompt";
-  }
-
-  return {
-    account,
-    toPubkey,
-  };
-}
-
 
 app.get('/imagine', async (req, res) => {
   const userPrompt = req.query.user_prompt;
