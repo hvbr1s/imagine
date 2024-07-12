@@ -411,9 +411,10 @@ app.options('/post_action', (req: Request, res: Response) => {
 app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
-    const prompt = req.query.user_prompt as string || '';
+    const rand: string = (Math.floor(Math.random() * 100) + 1).toString();
+    const prompt = (req.query.user_prompt + rand as string || '').trim();
     console.log('User prompt:', prompt);
-    const memo = req.query.memo as string || '';
+    const memo = (req.query.memo + rand as string || '').trim();
     console.log('User memo: ', memo)
     const body: ActionPostRequest = req.body;
 
@@ -509,6 +510,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
       console.log(`Transferring your NFT 📬`);
       const mintSend = await transferNFT(WALLET, user_account.toString(), mintAddress.toString());
       console.log(mintSend);
+      return
     } else {
       console.log('Transaction with memo not found within the timeout period');
     }
@@ -580,7 +582,7 @@ app.get('/imagine', async (req, res) => {
 
     // Response
     res.json(mintSend);
-    
+
   } catch (error) {
     console.error('Error processing request:', error);
     res.status(500).send({ error: "Error processing the request"});
