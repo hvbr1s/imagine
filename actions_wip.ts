@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import axios from 'axios';
 import OpenAI from 'openai';
-import { ComputeBudgetProgram, Connection, Keypair, PublicKey, Transaction, TransactionInstruction, clusterApiUrl, LAMPORTS_PER_SOL, SystemProgram } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, Transaction, TransactionInstruction, clusterApiUrl, LAMPORTS_PER_SOL, SystemProgram, TransactionSignature } from '@solana/web3.js';
 import { ACTIONS_CORS_HEADERS, ActionGetResponse, ActionPostRequest, ActionPostResponse, createPostResponse } from '@solana/actions'
 import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metaplex-foundation/js";
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
@@ -14,6 +14,7 @@ import cors from 'cors';
 import { EventEmitter } from 'events';
 import Instructor from "@instructor-ai/instructor";
 import { z } from "zod"
+import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 
 const FEE_LAMPORTS = 0.05 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
 const TREASURY_ADDRESS = new PublicKey('3crhbDnPJU9xvvhUwEs8WXPqAcA9aovsbj6aRBX9bNbw');
@@ -367,6 +368,7 @@ app.get('/safety', async (req: express.Request, res: express.Response) => {
 });
 
 app.get('/get_action', async (req, res) => {
+    const rand: string = (Math.floor(Math.random() * 1000) + 1).toString();
     try {
       const payload: ActionGetResponse = {
         icon: "https://imgur.com/a/imagine-app-2YbYxXn",
@@ -377,11 +379,17 @@ app.get('/get_action', async (req, res) => {
           actions: [
             {
               label: "Mint NFT",
-              href: "http://localhost:8800/post_action?user_prompt={prompt}",
+              href: `http://localhost:8800/post_action?user_prompt={prompt}&user_memo=${rand}`,
               parameters: [
                 {
                   name: "prompt",
-                  label: "Describe your NFT"
+                  label: "Describe your NFT",
+                  required: true,
+                },
+                {
+                  name: rand,
+                  label: "Memo",
+                  required: true,
                 }
               ]
             }
@@ -405,6 +413,8 @@ app.post('/post_action', async (req: Request, res: Response) => {
   try {
     const prompt = req.query.user_prompt as string || '';
     console.log('User prompt:', prompt);
+    const memo = req.query.memo as string || '';
+    console.log('User memo: ', memo)
     const body: ActionPostRequest = req.body;
 
     let user_account: PublicKey
@@ -421,13 +431,21 @@ app.post('/post_action', async (req: Request, res: Response) => {
     const transaction = new Transaction();
 
     // Get the latest blockhash
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    const { blockhash } = await connection.getLatestBlockhash();
     
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,
         toPubkey: TREASURY_ADDRESS,
         lamports: FEE_LAMPORTS,
+      })
+    );
+
+    transaction.add(
+      new TransactionInstruction({
+        keys: [],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(memo, 'utf-8'),
       })
     );
 
@@ -443,10 +461,57 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
     const payload: ActionPostResponse = {
       transaction: serializedTransaction.toString('base64'),
-      message: "Thank you for your business!",
+      message: transaction.signature?.toString('base64'),
     };
 
     res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
+
+    const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
+
+    if (transactionSignature) {
+      console.log(`Found transaction with memo: ${transactionSignature}`);
+      
+      // Trigger NFT creation process
+      const randomNumber = Math.floor(Math.random() * 10000);
+
+      const llmSays = await generatePrompt(prompt);
+      console.log(`LLM prompt 🤖-> ${llmSays}`);
+
+      const CONFIG = await defineConfig(llmSays, randomNumber);
+      const imageName = `'${CONFIG.imgName}'`
+      console.log(`Image Name -> ${imageName}`)
+      
+      const imageLocation = await imagine(llmSays, randomNumber);
+      console.log(`Image successfully created 🎨`);
+
+      console.log(`Uploading your Image🔼`);
+      const imageUri = await uploadImage(imageLocation, "");
+
+      console.log(`Uploading the Metadata⏫`);
+      const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
+      console.log(`Metadata URI -> ${metadataUri}`);
+
+      // Delete local image file
+      fs.unlink(imageLocation, (err) => {
+        if (err) {
+          console.error('Failed to delete the local image file:', err);
+        } else {
+          console.log(`Local image file deleted successfully 🗑️`);
+        }
+      });
+
+      console.log(`Minting your NFT🔨`);
+      const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
+      if (!mintAddress) {
+        throw new Error("Failed to mint the NFT. Mint address is undefined.");
+      }
+      
+      console.log(`Transferring your NFT 📬`);
+      const mintSend = await transferNFT(WALLET, user_account.toString(), mintAddress.toString());
+      console.log(mintSend);
+    } else {
+      console.log('Transaction with memo not found within the timeout period');
+    }
   } catch (err) {
     console.error(err);
     let message = "An unknown error occurred";
@@ -528,3 +593,34 @@ app.listen(port, () => {
     console.log(`Listening at http://localhost:${port}/`);
 });
 export default app;
+
+async function findTransactionWithMemo(connection: Connection, userAccount: PublicKey, memo: string, timeoutMinutes: number = 5): Promise<TransactionSignature | null> {
+  const startTime = Date.now();
+  const timeoutMs = timeoutMinutes * 60 * 1000;
+
+  while (Date.now() - startTime < timeoutMs) {
+    const signatures = await connection.getSignaturesForAddress(userAccount, { limit: 10 });
+
+    for (const sigInfo of signatures) {
+      const tx = await connection.getTransaction(sigInfo.signature);
+      if (!tx) continue;
+
+      const memoInstruction = tx.transaction.message.instructions.find(ix => {
+        const programId = tx.transaction.message.accountKeys[ix.programIdIndex];
+        return programId.equals(MEMO_PROGRAM_ID);
+      });
+
+      if (memoInstruction) {
+        const txMemo = Buffer.from(memoInstruction.data).toString('utf8');
+        if (txMemo === memo) {
+          return sigInfo.signature;
+        }
+      }
+    }
+
+    // Wait for 10 seconds before checking again
+    await new Promise(resolve => setTimeout(resolve, 10000));
+  }
+
+  return null;
+}
