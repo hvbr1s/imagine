@@ -403,60 +403,55 @@ app.options('/post_action', (req: Request, res: Response) => {
 app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
-
-    // Extract the user_prompt from the query parameters
     const prompt = req.query.user_prompt as string || '';
     console.log('User prompt:', prompt);
     const body: ActionPostRequest = req.body;
 
-    let account : PublicKey
+    let user_account: PublicKey
     try {
-      account = new PublicKey(body.account)
+      user_account = new PublicKey(body.account)
     } catch (error) {
-      return new Response('Invalid account', {
-        status: 400,
-        headers: ACTIONS_CORS_HEADERS
-      })
-      
+      return res.status(400).json({ error: 'Invalid account' });
     }
 
     const connection = new Connection(
-      process.env.SOLANA_RPC! || clusterApiUrl("devnet"),
+      process.env.SOLANA_RPC! || clusterApiUrl("mainnet-beta"),
     );
 
     const transaction = new Transaction();
 
+    // Get the latest blockhash
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    
     transaction.add(
       SystemProgram.transfer({
-        fromPubkey: account,
+        fromPubkey: user_account,
         toPubkey: TREASURY_ADDRESS,
         lamports: FEE_LAMPORTS,
-      }),
+      })
     );
 
-    // set the end user as the fee payer
-    transaction.feePayer = account;
+    // Set the transaction properties
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = user_account;
 
-    transaction.recentBlockhash = (
-      await connection.getLatestBlockhash()
-    ).blockhash;
-
-    const payload: ActionPostResponse = await createPostResponse({
-      fields: {
-        transaction,
-        message:"Thank you for your business!"
-      },
-      // note: no additional signers are needed
-      // signers: [],
+    // Serialize the transaction
+    const serializedTransaction = transaction.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false
     });
-    console.log(payload)
+
+    const payload: ActionPostResponse = {
+      transaction: serializedTransaction.toString('base64'),
+      message: "Thank you for your business!",
+    };
 
     res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
   } catch (err) {
-    console.log(err);
+    console.error(err);
     let message = "An unknown error occurred";
-    if (typeof err == "string") message = err;
-    res.status(400).json({ message: message });
+    if (err instanceof Error) message = err.message;
+    res.status(400).json({ error: message });
   }
 });
 
