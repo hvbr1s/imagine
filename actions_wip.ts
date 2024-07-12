@@ -410,9 +410,11 @@ app.options('/post_action', (req: Request, res: Response) => {
 
 app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
+  const randomNumber = Math.floor(Math.random() * 10000);
+  const rand: string = randomNumber.toString()
+  console.log(rand)
   try {
-    const rand: string = (Math.floor(Math.random() * 100) + 1).toString();
-    const prompt = (req.query.user_prompt + rand as string || '').trim();
+    const prompt = (req.query.user_prompt as string || '').trim();
     console.log('User prompt:', prompt);
     const memo = (req.query.memo + rand as string || '').trim();
     console.log('User memo: ', memo)
@@ -433,7 +435,8 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
     // Get the latest blockhash
     const { blockhash } = await connection.getLatestBlockhash();
-    
+
+    // Adding payment
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,
@@ -442,6 +445,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
       })
     );
 
+    // Adding memo
     transaction.add(
       new TransactionInstruction({
         keys: [],
@@ -454,16 +458,12 @@ app.post('/post_action', async (req: Request, res: Response) => {
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = user_account;
 
-    // Serialize the transaction
-    const serializedTransaction = transaction.serialize({
-      requireAllSignatures: false,
-      verifySignatures: false
+    const payload: ActionPostResponse = await createPostResponse({
+      fields:{
+      transaction: transaction,
+      message: "Your NF is on the way!",
+      },
     });
-
-    const payload: ActionPostResponse = {
-      transaction: serializedTransaction.toString('base64'),
-      message: transaction.signature?.toString('base64'),
-    };
 
     res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
 
@@ -473,8 +473,6 @@ app.post('/post_action', async (req: Request, res: Response) => {
       console.log(`Found transaction with memo: ${transactionSignature}`);
       
       // Trigger NFT creation process
-      const randomNumber = Math.floor(Math.random() * 10000);
-
       const llmSays = await generatePrompt(prompt);
       console.log(`LLM prompt 🤖-> ${llmSays}`);
 
@@ -510,7 +508,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
       console.log(`Transferring your NFT 📬`);
       const mintSend = await transferNFT(WALLET, user_account.toString(), mintAddress.toString());
       console.log(mintSend);
-      return
+      return res.status(200)
     } else {
       console.log('Transaction with memo not found within the timeout period');
     }
@@ -621,8 +619,8 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
       }
     }
 
-    console.log("Waiting 5 seconds before next check...");
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log("Waiting 2 seconds before next check...");
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
   console.log("Timeout reached, no matching memo found");
