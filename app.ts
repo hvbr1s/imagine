@@ -3,17 +3,21 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import dotenv from 'dotenv';
-import express from 'express';
+import express, { Request, Response } from 'express';
 import axios from 'axios';
 import OpenAI from 'openai';
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction, TransactionInstruction, clusterApiUrl, LAMPORTS_PER_SOL, SystemProgram, TransactionSignature } from '@solana/web3.js';
+import { ACTIONS_CORS_HEADERS, ActionGetResponse, ActionPostRequest, ActionPostResponse, createPostResponse } from '@solana/actions'
 import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metaplex-foundation/js";
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
 import cors from 'cors';
 import { EventEmitter } from 'events';
 import Instructor from "@instructor-ai/instructor";
 import { z } from "zod"
-import { stringify } from 'querystring';
+import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
+
+const FEE_LAMPORTS = 0.05 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
+const TREASURY_ADDRESS = new PublicKey('3crhbDnPJU9xvvhUwEs8WXPqAcA9aovsbj6aRBX9bNbw');
 
 
 // Load environment variable
@@ -156,7 +160,7 @@ async function defineConfig(llmPrompt: string, randomNumber: number) {
             Expected output:
 
             {
-              "one_word_title": "<describe the image in ONE word>",
+              "one_word_title": "<describe the image in ONE word, be creative>",
               "description": "<a very short description of the prompt>",
               "mood": "<the mood of the prompt>",
               "haiku" "<a very short haiku based on the prompt>"
@@ -363,6 +367,160 @@ app.get('/safety', async (req: express.Request, res: express.Response) => {
   }
 });
 
+app.get('/get_action', async (req, res) => {
+    const rand: string = (Math.floor(Math.random() * 1000) + 1).toString();
+    try {
+      const payload: ActionGetResponse = {
+        icon: "https://imgur.com/a/imagine-app-2YbYxXn",
+        label: "Mint NFT",
+        title: "Imagine Demo",
+        description: "Describe and mint your own unique NFT",
+        links: {
+          actions: [
+            {
+              label: "Mint NFT",
+              href: `http://localhost:8800/post_action?user_prompt={prompt}&memo={memo}`,
+              parameters: [
+                {
+                  name: "prompt",
+                  label: "Describe your NFT",
+                  required: true,
+                },
+                {
+                  name: "memo",
+                  label: "Add a memo",
+                  required: true,
+                }
+              ]
+            }
+          ]
+        }
+      };
+  
+      res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
+    } catch (error) {
+      console.error("Error handling GET request:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+app.options('/post_action', (req: Request, res: Response) => {
+  res.header(ACTIONS_CORS_HEADERS).sendStatus(200);
+});
+
+app.use(express.json());
+app.post('/post_action', async (req: Request, res: Response) => {
+
+  const randomNumber = Math.floor(Math.random() * 10000);
+  const rand: string = randomNumber.toString()
+
+  try {
+    const prompt = (req.query.user_prompt as string || '').trim();
+    console.log('User prompt:', prompt);
+    const memo = (req.query.memo + rand as string || '').trim();
+    console.log('User memo: ', memo)
+    const body: ActionPostRequest = req.body;
+
+    let user_account: PublicKey
+    try {
+      user_account = new PublicKey(body.account)
+    } catch (error) {
+      return res.status(400).json({ error: 'Invalid account' });
+    }
+
+    const connection = new Connection(
+      process.env.SOLANA_RPC! || clusterApiUrl("devnet"),
+    );
+
+    const transaction = new Transaction();
+
+    // Get the latest blockhash
+    const { blockhash } = await connection.getLatestBlockhash();
+
+    // Adding payment
+    transaction.add(
+      SystemProgram.transfer({
+        fromPubkey: user_account,
+        toPubkey: TREASURY_ADDRESS,
+        lamports: FEE_LAMPORTS,
+      })
+    );
+
+    // Adding memo
+    transaction.add(
+      new TransactionInstruction({
+        keys: [],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(memo, 'utf-8'),
+      })
+    );
+
+    // Set the transaction properties
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = user_account;
+
+    const payload: ActionPostResponse = await createPostResponse({
+      fields:{
+      transaction: transaction,
+      message: "Your NFT is on the way!",
+      },
+    });
+
+    res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
+
+    const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
+
+    if (transactionSignature) {
+      console.log(`Found transaction with memo: ${transactionSignature}`);
+      
+      // Trigger NFT creation process
+      const llmSays = await generatePrompt(prompt);
+      console.log(`LLM prompt 🤖-> ${llmSays}`);
+
+      const CONFIG = await defineConfig(llmSays, randomNumber);
+      const imageName = `'${CONFIG.imgName}'`
+      console.log(`Image Name -> ${imageName}`)
+      
+      const imageLocation = await imagine(llmSays, randomNumber);
+      console.log(`Image successfully created 🎨`);
+
+      console.log(`Uploading your Image🔼`);
+      const imageUri = await uploadImage(imageLocation, "");
+
+      console.log(`Uploading the Metadata⏫`);
+      const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
+      console.log(`Metadata URI -> ${metadataUri}`);
+
+      // Delete local image file
+      fs.unlink(imageLocation, (err) => {
+        if (err) {
+          console.error('Failed to delete the local image file:', err);
+        } else {
+          console.log(`Local image file deleted successfully 🗑️`);
+        }
+      });
+
+      console.log(`Minting your NFT🔨`);
+      const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
+      if (!mintAddress) {
+        throw new Error("Failed to mint the NFT. Mint address is undefined.");
+      }
+      
+      console.log(`Transferring your NFT 📬`);
+      const mintSend = await transferNFT(WALLET, user_account.toString(), mintAddress.toString());
+      console.log(mintSend);
+      return res.status(200)
+    } else {
+      console.log('Transaction with memo not found within the timeout period');
+    }
+  } catch (err) {
+    console.error(err);
+    let message = "An unknown error occurred";
+    if (err instanceof Error) message = err.message;
+    res.status(400).json({ error: message });
+  }
+});
+
 app.get('/imagine', async (req, res) => {
   const userPrompt = req.query.user_prompt;
   const userAddress = req.query.address; // the user provider public address where they want to receive their NFT
@@ -423,7 +581,7 @@ app.get('/imagine', async (req, res) => {
 
     // Response
     res.json(mintSend);
-    
+
   } catch (error) {
     console.error('Error processing request:', error);
     res.status(500).send({ error: "Error processing the request"});
@@ -436,3 +594,36 @@ app.listen(port, () => {
     console.log(`Listening at http://localhost:${port}/`);
 });
 export default app;
+
+async function findTransactionWithMemo(connection: Connection, userAccount: PublicKey, memo: string, timeoutMinutes: number = 5): Promise<TransactionSignature | null> {
+  const startTime = Date.now();
+  const timeoutMs = timeoutMinutes * 60 * 1000;
+
+  console.log(`Searching for memo: "${memo}"`);
+
+  while (Date.now() - startTime < timeoutMs) {
+    const signatures = await connection.getSignaturesForAddress(userAccount, 
+      { limit: 5 },
+      'confirmed'
+    );
+    console.log("Fetched signatures:", signatures);
+
+    for (const sigInfo of signatures) {
+      console.log(`Checking signature: ${sigInfo.signature}`);
+      console.log(`Signature memo: "${sigInfo.memo}"`);
+      
+      if (sigInfo.memo && sigInfo.memo.includes(memo)) {
+        console.log("Memo match found!");
+        return sigInfo.signature;
+      } else {
+        console.log("No match");
+      }
+    }
+
+    console.log("Waiting 2 seconds before next check...");
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+
+  console.log("Timeout reached, no matching memo found");
+  return null;
+}
