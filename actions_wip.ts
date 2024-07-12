@@ -379,7 +379,7 @@ app.get('/get_action', async (req, res) => {
           actions: [
             {
               label: "Mint NFT",
-              href: `http://localhost:8800/post_action?user_prompt={prompt}&user_memo=${rand}`,
+              href: `http://localhost:8800/post_action?user_prompt={prompt}&memo={memo}`,
               parameters: [
                 {
                   name: "prompt",
@@ -387,8 +387,8 @@ app.get('/get_action', async (req, res) => {
                   required: true,
                 },
                 {
-                  name: rand,
-                  label: "Memo",
+                  name: "memo",
+                  label: "Add a memo",
                   required: true,
                 }
               ]
@@ -425,7 +425,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     }
 
     const connection = new Connection(
-      process.env.SOLANA_RPC! || clusterApiUrl("mainnet-beta"),
+      process.env.SOLANA_RPC! || clusterApiUrl("devnet"),
     );
 
     const transaction = new Transaction();
