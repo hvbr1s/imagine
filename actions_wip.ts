@@ -598,29 +598,31 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
   const startTime = Date.now();
   const timeoutMs = timeoutMinutes * 60 * 1000;
 
+  console.log(`Searching for memo: "${memo}"`);
+
   while (Date.now() - startTime < timeoutMs) {
-    const signatures = await connection.getSignaturesForAddress(userAccount, { limit: 10 });
+    const signatures = await connection.getSignaturesForAddress(userAccount, 
+      { limit: 5 },
+      'confirmed'
+    );
+    console.log("Fetched signatures:", signatures);
 
     for (const sigInfo of signatures) {
-      const tx = await connection.getTransaction(sigInfo.signature);
-      if (!tx) continue;
-
-      const memoInstruction = tx.transaction.message.instructions.find(ix => {
-        const programId = tx.transaction.message.accountKeys[ix.programIdIndex];
-        return programId.equals(MEMO_PROGRAM_ID);
-      });
-
-      if (memoInstruction) {
-        const txMemo = Buffer.from(memoInstruction.data).toString('utf8');
-        if (txMemo === memo) {
-          return sigInfo.signature;
-        }
+      console.log(`Checking signature: ${sigInfo.signature}`);
+      console.log(`Signature memo: "${sigInfo.memo}"`);
+      
+      if (sigInfo.memo && sigInfo.memo.includes(memo)) {
+        console.log("Memo match found!");
+        return sigInfo.signature;
+      } else {
+        console.log("No match");
       }
     }
 
-    // Wait for 10 seconds before checking again
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    console.log("Waiting 5 seconds before next check...");
+    await new Promise(resolve => setTimeout(resolve, 5000));
   }
 
+  console.log("Timeout reached, no matching memo found");
   return null;
 }
