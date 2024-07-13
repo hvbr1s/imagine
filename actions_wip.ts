@@ -160,7 +160,7 @@ async function defineConfig(llmPrompt: string, randomNumber: number) {
             Expected output:
 
             {
-              "one_word_title": "<describe the image in ONE word>",
+              "one_word_title": "<describe the image in ONE word, be creative>",
               "description": "<a very short description of the prompt>",
               "mood": "<the mood of the prompt>",
               "haiku" "<a very short haiku based on the prompt>"
@@ -371,7 +371,7 @@ app.get('/get_action', async (req, res) => {
     const rand: string = (Math.floor(Math.random() * 1000) + 1).toString();
     try {
       const payload: ActionGetResponse = {
-        icon: "https://imgur.com/a/imagine-app-2YbYxXn",
+        icon: new URL("https://i.imgur.com/Frju6Dq.png").toString(),
         label: "Mint NFT",
         title: "Imagine Demo",
         description: "Describe and mint your own unique NFT",
@@ -410,9 +410,10 @@ app.options('/post_action', (req: Request, res: Response) => {
 
 app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
+
   const randomNumber = Math.floor(Math.random() * 10000);
   const rand: string = randomNumber.toString()
-  console.log(rand)
+
   try {
     const prompt = (req.query.user_prompt as string || '').trim();
     console.log('User prompt:', prompt);
@@ -461,7 +462,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     const payload: ActionPostResponse = await createPostResponse({
       fields:{
       transaction: transaction,
-      message: "Your NF is on the way!",
+      message: "Your NFT is on the way!",
       },
     });
 
@@ -622,7 +623,6 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
     console.log("Waiting 2 seconds before next check...");
     await new Promise(resolve => setTimeout(resolve, 2000));
   }
-
   console.log("Timeout reached, no matching memo found");
   return null;
 }
