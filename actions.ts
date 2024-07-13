@@ -9,17 +9,30 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import express from 'express';
+import express, { Request, Response } from 'express';
 import Instructor from "@instructor-ai/instructor";
 import OpenAI from 'openai';
 import { z } from "zod";
 
 // Solana-related imports
 import { 
+  ACTIONS_CORS_HEADERS, 
+  ActionGetResponse, 
+  ActionPostRequest, 
+  ActionPostResponse, 
+  createPostResponse 
+} from '@solana/actions';
+import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
+import { 
   Connection, 
   Keypair, 
+  LAMPORTS_PER_SOL,
   PublicKey, 
-  TransactionSignature 
+  SystemProgram,
+  Transaction, 
+  TransactionInstruction, 
+  TransactionSignature,
+  clusterApiUrl 
 } from '@solana/web3.js';
 
 // Metaplex-related imports
@@ -30,6 +43,9 @@ import {
   toMetaplexFile 
 } from "@metaplex-foundation/js";
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
+
+const FEE_LAMPORTS = 0.0001 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
+const TREASURY_ADDRESS = new PublicKey('3crhbDnPJU9xvvhUwEs8WXPqAcA9aovsbj6aRBX9bNbw');
 
 // Load environment variable
 dotenv.config();
@@ -379,72 +395,159 @@ app.get('/safety', async (req: express.Request, res: express.Response) => {
   }
 });
 
-app.get('/imagine', async (req, res) => {
-  const userPrompt = req.query.user_prompt;
-  const userAddress = req.query.address; // the user provider public address where they want to receive their NFT
+app.get('/get_action', async (req, res) => {
+    const rand: string = (Math.floor(Math.random() * 1000) + 1).toString();
+    try {
+      const payload: ActionGetResponse = {
+        icon: new URL("https://i.imgur.com/Frju6Dq.png").toString(),
+        label: "Mint NFT",
+        title: "Imagin' App 🌈",
+        description: "Describe your own unique NFT",
+        links: {
+          actions: [
+            {
+              label: "Mint NFT",
+              href: `http://localhost:8800/post_action?user_prompt={prompt}&memo={memo}`,
+              parameters: [
+                {
+                  name: "prompt",
+                  label: "Describe your NFT",
+                  required: true,
+                },
+                {
+                  name: "memo",
+                  label: "Add a memo",
+                  required: true,
+                }
+              ]
+            }
+          ]
+        }
+      };
+  
+      res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
+    } catch (error) {
+      console.error("Error handling GET request:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 
-  // Validate both user_prompt and address
-  if (typeof userPrompt !== 'string' || typeof userAddress !== 'string') {
-    res.status(400).send('Invalid input: Ensure both user_prompt and address are provided as strings.');
-    return;
-  }
+app.options('/post_action', (req: Request, res: Response) => {
+  res.header(ACTIONS_CORS_HEADERS).sendStatus(200);
+});
 
-  console.log(`Received request -> Prompt: ${userPrompt}, Address: ${userAddress}`);
+app.use(express.json());
+app.post('/post_action', async (req: Request, res: Response) => {
+
+  const randomNumber = Math.floor(Math.random() * 10000);
+  const rand: string = randomNumber.toString()
 
   try {
-    progressEmitter.emit('progress', { step: 0, message: "Let's begin! 🪄" });
-    // Assign unique number to project
-    const randomNumber = Math.floor(Math.random() * 10000);
+    const prompt = (req.query.user_prompt as string || '').trim();
+    console.log('User prompt:', prompt);
+    const memo = (req.query.memo + rand as string || '').trim();
+    console.log('User memo: ', memo)
+    const body: ActionPostRequest = req.body;
 
-    const llmSays = await generatePrompt(userPrompt);
-    console.log(`LLM prompt 🤖-> ${llmSays}`);
+    let user_account: PublicKey
+    try {
+      user_account = new PublicKey(body.account)
+    } catch (error) {
+      return res.status(400).json({ error: 'Invalid account' });
+    }
 
-    const CONFIG = await defineConfig(llmSays, randomNumber);
-    const imageName = `'${CONFIG.imgName}'`
-    console.log(`Image Name -> ${imageName}`)
-    
-    progressEmitter.emit('progress', { step: 1, message: `Creating your image ${imageName} 🎨` });
-    const imageLocation = await imagine(llmSays, randomNumber);
-    console.log(`Image successfully created 🎨`);
+    const connection = new Connection(
+      // process.env.SOLANA_RPC! || clusterApiUrl("mainnet-beta"),
+      process.env.SOLANA_RPC! || clusterApiUrl("devnet"),
+    );
 
-    console.log(`Uploading your Image🔼`);
-    progressEmitter.emit('progress', { step: 2, message: 'Uploading your Image🔼' });
-    const imageUri = await uploadImage(imageLocation, "");
+    const transaction = new Transaction();
 
-    console.log(`Uploading the Metadata⏫`);
-    progressEmitter.emit('progress', { step: 3, message: 'Uploading the Metadata⏫' });
-    const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
-    console.log(`Metadata URI -> ${metadataUri}`);
+    // Get the latest blockhash
+    const { blockhash } = await connection.getLatestBlockhash();
 
-    // Delete local image file
-    fs.unlink(imageLocation, (err) => {
-      if (err) {
-        console.error('Failed to delete the local image file:', err);
-      } else {
-        console.log(`Local image file deleted successfully 🗑️`);
-      }
+    // Adding payment
+    transaction.add(
+      SystemProgram.transfer({
+        fromPubkey: user_account,
+        toPubkey: TREASURY_ADDRESS,
+        lamports: FEE_LAMPORTS,
+      })
+    );
+
+    // Adding memo
+    transaction.add(
+      new TransactionInstruction({
+        keys: [],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(memo, 'utf-8'),
+      })
+    );
+
+    // Set the transaction properties
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = user_account;
+
+    const payload: ActionPostResponse = await createPostResponse({
+      fields:{
+      transaction: transaction,
+      message: "Your NFT is on the way!",
+      },
     });
 
-    console.log(`Minting your NFT🔨`);
-    progressEmitter.emit('progress', { step: 4, message: 'Minting your NFT🔨' });
-    const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
-    if (!mintAddress) {
-      throw new Error("Failed to mint the NFT. Mint address is undefined.");
+    res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
+
+    const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
+
+    if (transactionSignature) {
+      console.log(`Found transaction with memo: ${transactionSignature}`);
+      
+      // Trigger NFT creation process
+      const llmSays = await generatePrompt(prompt);
+      console.log(`LLM prompt 🤖-> ${llmSays}`);
+
+      const CONFIG = await defineConfig(llmSays, randomNumber);
+      const imageName = `'${CONFIG.imgName}'`
+      console.log(`Image Name -> ${imageName}`)
+      
+      const imageLocation = await imagine(llmSays, randomNumber);
+      console.log(`Image successfully created 🎨`);
+
+      console.log(`Uploading your Image🔼`);
+      const imageUri = await uploadImage(imageLocation, "");
+
+      console.log(`Uploading the Metadata⏫`);
+      const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
+      console.log(`Metadata URI -> ${metadataUri}`);
+
+      // Delete local image file
+      fs.unlink(imageLocation, (err) => {
+        if (err) {
+          console.error('Failed to delete the local image file:', err);
+        } else {
+          console.log(`Local image file deleted successfully 🗑️`);
+        }
+      });
+
+      console.log(`Minting your NFT🔨`);
+      const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
+      if (!mintAddress) {
+        throw new Error("Failed to mint the NFT. Mint address is undefined.");
+      }
+      
+      console.log(`Transferring your NFT 📬`);
+      const mintSend = await transferNFT(WALLET, user_account.toString(), mintAddress.toString());
+      console.log(mintSend);
+      return res.status(200)
+    } else {
+      console.log('Transaction with memo not found within the timeout period');
     }
-    
-    console.log(`Transferring your NFT 📬`);
-    progressEmitter.emit('progress', { step: 5, message: 'Transferring your NFT 📬' });
-    const mintSend = await transferNFT(WALLET, userAddress, mintAddress.toString());
-    console.log(mintSend)
-
-    // Response
-    res.json(mintSend);
-
-  } catch (error) {
-    console.error('Error processing request:', error);
-    res.status(500).send({ error: "Error processing the request"});
+  } catch (err) {
+    console.error(err);
+    let message = "An unknown error occurred";
+    if (err instanceof Error) message = err.message;
+    res.status(400).json({ error: message });
   }
-
 });
 
 // Start the server
