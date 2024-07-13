@@ -398,7 +398,6 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
 ///////// API ROUTES
 
 app.get('/get_action', async (req, res) => {
-    const rand: string = (Math.floor(Math.random() * 1000) + 1).toString();
     try {
       const payload: ActionGetResponse = {
         icon: new URL("https://i.imgur.com/Frju6Dq.png").toString(),
@@ -451,98 +450,104 @@ app.post('/post_action', async (req: Request, res: Response) => {
     console.log('User memo: ', memo)
     const body: ActionPostRequest = req.body;
 
-    let user_account: PublicKey
-    try {
-      user_account = new PublicKey(body.account)
-    } catch (error) {
-      return res.status(400).json({ error: 'Invalid account' });
-    }
+    const safetyCheck = await safePrompting(prompt);
 
-    const connection = new Connection(
-      // process.env.SOLANA_RPC! || clusterApiUrl("mainnet-beta"),
-      process.env.SOLANA_RPC! || clusterApiUrl("devnet"),
-    );
+    if (safetyCheck === 'safe') { 
+      let user_account: PublicKey
+      try {
+        user_account = new PublicKey(body.account)
+      } catch (error) {
+        return res.status(400).json({ error: 'Invalid account' });
+      }
 
-    const transaction = new Transaction();
+      const connection = new Connection(
+        // process.env.SOLANA_RPC! || clusterApiUrl("mainnet-beta"),
+        process.env.SOLANA_RPC! || clusterApiUrl("devnet"),
+      );
 
-    // Get the latest blockhash
-    const { blockhash } = await connection.getLatestBlockhash();
+      const transaction = new Transaction();
 
-    // Adding payment
-    transaction.add(
-      SystemProgram.transfer({
-        fromPubkey: user_account,
-        toPubkey: TREASURY_ADDRESS,
-        lamports: FEE_LAMPORTS,
-      })
-    );
+      // Get the latest blockhash
+      const { blockhash } = await connection.getLatestBlockhash();
 
-    // Adding memo
-    transaction.add(
-      new TransactionInstruction({
-        keys: [],
-        programId: MEMO_PROGRAM_ID,
-        data: Buffer.from(memo, 'utf-8'),
-      })
-    );
+      // Adding payment
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: user_account,
+          toPubkey: TREASURY_ADDRESS,
+          lamports: FEE_LAMPORTS,
+        })
+      );
 
-    // Set the transaction properties
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = user_account;
+      // Adding memo
+      transaction.add(
+        new TransactionInstruction({
+          keys: [],
+          programId: MEMO_PROGRAM_ID,
+          data: Buffer.from(memo, 'utf-8'),
+        })
+      );
 
-    const payload: ActionPostResponse = await createPostResponse({
-      fields:{
-      transaction: transaction,
-      message: "Your NFT is on the way!",
-      },
-    });
+      // Set the transaction properties
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = user_account;
 
-    res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
-
-    const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
-
-    if (transactionSignature) {
-      console.log(`Found transaction with memo: ${transactionSignature}`);
-      
-      // Trigger NFT creation process
-      const llmSays = await generatePrompt(prompt);
-      console.log(`LLM prompt 🤖-> ${llmSays}`);
-
-      const CONFIG = await defineConfig(llmSays, randomNumber);
-      const imageName = `'${CONFIG.imgName}'`
-      console.log(`Image Name -> ${imageName}`)
-      
-      const imageLocation = await imagine(llmSays, randomNumber);
-      console.log(`Image successfully created 🎨`);
-
-      console.log(`Uploading your Image🔼`);
-      const imageUri = await uploadImage(imageLocation, "");
-
-      console.log(`Uploading the Metadata⏫`);
-      const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
-      console.log(`Metadata URI -> ${metadataUri}`);
-
-      // Delete local image file
-      fs.unlink(imageLocation, (err) => {
-        if (err) {
-          console.error('Failed to delete the local image file:', err);
-        } else {
-          console.log(`Local image file deleted successfully 🗑️`);
-        }
+      const payload: ActionPostResponse = await createPostResponse({
+        fields:{
+        transaction: transaction,
+        message: "Your NFT is on the way, check your wallet in a few minutes!",
+        },
       });
 
-      console.log(`Minting your NFT🔨`);
-      const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
-      if (!mintAddress) {
-        throw new Error("Failed to mint the NFT. Mint address is undefined.");
+      res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
+
+      const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
+
+      if (transactionSignature) {
+        console.log(`Found transaction with memo: ${transactionSignature}`);
+        
+        // Trigger NFT creation process
+        const llmSays = await generatePrompt(prompt);
+        console.log(`LLM prompt 🤖-> ${llmSays}`);
+
+        const CONFIG = await defineConfig(llmSays, randomNumber);
+        const imageName = `'${CONFIG.imgName}'`
+        console.log(`Image Name -> ${imageName}`)
+        
+        const imageLocation = await imagine(llmSays, randomNumber);
+        console.log(`Image successfully created 🎨`);
+
+        console.log(`Uploading your Image🔼`);
+        const imageUri = await uploadImage(imageLocation, "");
+
+        console.log(`Uploading the Metadata⏫`);
+        const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
+        console.log(`Metadata URI -> ${metadataUri}`);
+
+        // Delete local image file
+        fs.unlink(imageLocation, (err) => {
+          if (err) {
+            console.error('Failed to delete the local image file:', err);
+          } else {
+            console.log(`Local image file deleted successfully 🗑️`);
+          }
+        });
+
+        console.log(`Minting your NFT🔨`);
+        const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
+        if (!mintAddress) {
+          throw new Error("Failed to mint the NFT. Mint address is undefined.");
+        }
+        
+        console.log(`Transferring your NFT 📬`);
+        const mintSend = await transferNFT(WALLET, user_account.toString(), mintAddress.toString());
+        console.log(mintSend);
+        return res.status(200)
+      } else {
+        console.log('Transaction with memo not found within the timeout period');
       }
-      
-      console.log(`Transferring your NFT 📬`);
-      const mintSend = await transferNFT(WALLET, user_account.toString(), mintAddress.toString());
-      console.log(mintSend);
-      return res.status(200)
     } else {
-      console.log('Transaction with memo not found within the timeout period');
+      res.status(400).json({ error: 'Invalid prompt detected please try again' })
     }
   } catch (err) {
     console.error(err);
@@ -555,6 +560,6 @@ app.post('/post_action', async (req: Request, res: Response) => {
 // Start the server
 app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}/`);
-  console.log(`Test your blinks at http://localhost:${port}/get_action `)
+  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/devnet`)
 });
 export default app;
