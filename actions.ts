@@ -1,20 +1,48 @@
+// Node.js built-in modules
+import { EventEmitter } from 'events';
 import * as fs from 'graceful-fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Third-party modules
+import axios from 'axios';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
-import axios from 'axios';
-import OpenAI from 'openai';
-import { Connection, Keypair, PublicKey, Transaction, TransactionInstruction, clusterApiUrl, LAMPORTS_PER_SOL, SystemProgram, TransactionSignature } from '@solana/web3.js';
-import { ACTIONS_CORS_HEADERS, ActionGetResponse, ActionPostRequest, ActionPostResponse, createPostResponse } from '@solana/actions'
-import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metaplex-foundation/js";
-import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
-import cors from 'cors';
-import { EventEmitter } from 'events';
 import Instructor from "@instructor-ai/instructor";
-import { z } from "zod"
+import OpenAI from 'openai';
+import { z } from "zod";
+
+// Solana-related imports
+import { 
+  ACTIONS_CORS_HEADERS, 
+  ActionGetResponse, 
+  ActionPostRequest, 
+  ActionPostResponse, 
+  createPostResponse 
+} from '@solana/actions';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
+import { 
+  Connection, 
+  Keypair, 
+  LAMPORTS_PER_SOL,
+  PublicKey, 
+  SystemProgram,
+  Transaction, 
+  TransactionInstruction, 
+  TransactionSignature,
+  clusterApiUrl 
+} from '@solana/web3.js';
+
+// Metaplex-related imports
+import { 
+  Metaplex, 
+  bundlrStorage, 
+  keypairIdentity, 
+  toMetaplexFile 
+} from "@metaplex-foundation/js";
+import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
 
 const FEE_LAMPORTS = 0.0001 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
 const TREASURY_ADDRESS = new PublicKey('3crhbDnPJU9xvvhUwEs8WXPqAcA9aovsbj6aRBX9bNbw');
@@ -520,74 +548,6 @@ app.post('/post_action', async (req: Request, res: Response) => {
     if (err instanceof Error) message = err.message;
     res.status(400).json({ error: message });
   }
-});
-
-app.get('/imagine', async (req, res) => {
-  const userPrompt = req.query.user_prompt;
-  const userAddress = req.query.address; // the user provider public address where they want to receive their NFT
-
-  // Validate both user_prompt and address
-  if (typeof userPrompt !== 'string' || typeof userAddress !== 'string') {
-    res.status(400).send('Invalid input: Ensure both user_prompt and address are provided as strings.');
-    return;
-  }
-
-  console.log(`Received request -> Prompt: ${userPrompt}, Address: ${userAddress}`);
-
-  try {
-    progressEmitter.emit('progress', { step: 0, message: "Let's begin! 🪄" });
-    // Assign unique number to project
-    const randomNumber = Math.floor(Math.random() * 10000);
-
-    const llmSays = await generatePrompt(userPrompt);
-    console.log(`LLM prompt 🤖-> ${llmSays}`);
-
-    const CONFIG = await defineConfig(llmSays, randomNumber);
-    const imageName = `'${CONFIG.imgName}'`
-    console.log(`Image Name -> ${imageName}`)
-    
-    progressEmitter.emit('progress', { step: 1, message: `Creating your image ${imageName} 🎨` });
-    const imageLocation = await imagine(llmSays, randomNumber);
-    console.log(`Image successfully created 🎨`);
-
-    console.log(`Uploading your Image🔼`);
-    progressEmitter.emit('progress', { step: 2, message: 'Uploading your Image🔼' });
-    const imageUri = await uploadImage(imageLocation, "");
-
-    console.log(`Uploading the Metadata⏫`);
-    progressEmitter.emit('progress', { step: 3, message: 'Uploading the Metadata⏫' });
-    const metadataUri = await uploadMetadata(imageUri, CONFIG.imgType, CONFIG.imgName, CONFIG.description, CONFIG.attributes);
-    console.log(`Metadata URI -> ${metadataUri}`);
-
-    // Delete local image file
-    fs.unlink(imageLocation, (err) => {
-      if (err) {
-        console.error('Failed to delete the local image file:', err);
-      } else {
-        console.log(`Local image file deleted successfully 🗑️`);
-      }
-    });
-
-    console.log(`Minting your NFT🔨`);
-    progressEmitter.emit('progress', { step: 4, message: 'Minting your NFT🔨' });
-    const mintAddress = await mintProgrammableNft(metadataUri, CONFIG.imgName, CONFIG.sellerFeeBasisPoints, CONFIG.symbol, CONFIG.creators);
-    if (!mintAddress) {
-      throw new Error("Failed to mint the NFT. Mint address is undefined.");
-    }
-    
-    console.log(`Transferring your NFT 📬`);
-    progressEmitter.emit('progress', { step: 5, message: 'Transferring your NFT 📬' });
-    const mintSend = await transferNFT(WALLET, userAddress, mintAddress.toString());
-    console.log(mintSend)
-
-    // Response
-    res.json(mintSend);
-
-  } catch (error) {
-    console.error('Error processing request:', error);
-    res.status(500).send({ error: "Error processing the request"});
-  }
-
 });
 
 // Start the server
