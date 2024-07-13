@@ -16,9 +16,8 @@ import Instructor from "@instructor-ai/instructor";
 import { z } from "zod"
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 
-const FEE_LAMPORTS = 0.05 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
+const FEE_LAMPORTS = 0.0001 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
 const TREASURY_ADDRESS = new PublicKey('3crhbDnPJU9xvvhUwEs8WXPqAcA9aovsbj6aRBX9bNbw');
-
 
 // Load environment variable
 dotenv.config();
@@ -50,7 +49,8 @@ const WALLET = getKeypairFromEnvironment();
 const METAPLEX = Metaplex.make(SOLANA_CONNECTION)
     .use(keypairIdentity(WALLET))
     .use(bundlrStorage({
-        address: 'https://devnet.bundlr.network',
+        address: 'https://devnet.bundlr.network', // Devnet
+        //address: 'https://node1.bundlr.network', // Mainnet
         providerUrl: QUICKNODE_RPC,
         timeout: 60000,
     }));
@@ -373,8 +373,8 @@ app.get('/get_action', async (req, res) => {
       const payload: ActionGetResponse = {
         icon: new URL("https://i.imgur.com/Frju6Dq.png").toString(),
         label: "Mint NFT",
-        title: "Imagine Demo",
-        description: "Describe and mint your own unique NFT",
+        title: "Imagin' App 🌈",
+        description: "Describe your own unique NFT",
         links: {
           actions: [
             {
@@ -429,6 +429,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     }
 
     const connection = new Connection(
+      // process.env.SOLANA_RPC! || clusterApiUrl("mainnet-beta"),
       process.env.SOLANA_RPC! || clusterApiUrl("devnet"),
     );
 
@@ -620,9 +621,10 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
       }
     }
 
-    console.log("Waiting 2 seconds before next check...");
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log("Waiting 5 seconds before next check...");
+    await new Promise(resolve => setTimeout(resolve, 5000));
   }
+
   console.log("Timeout reached, no matching memo found");
   return null;
 }
