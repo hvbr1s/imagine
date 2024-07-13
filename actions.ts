@@ -362,38 +362,40 @@ async function transferNFT(
     }
 }
 
-///////// API ROUTES
+async function findTransactionWithMemo(connection: Connection, userAccount: PublicKey, memo: string, timeoutMinutes: number = 5): Promise<TransactionSignature | null> {
+  const startTime = Date.now();
+  const timeoutMs = timeoutMinutes * 60 * 1000;
 
-// Serve static files from the "public" directory
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-app.use(express.static(path.join(__dirname, 'public')));
+  console.log(`Searching for memo: "${memo}"`);
 
-// Route to serve the HTML file
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+  while (Date.now() - startTime < timeoutMs) {
+    const signatures = await connection.getSignaturesForAddress(userAccount, 
+      { limit: 5 },
+      'confirmed'
+    );
+    console.log("Fetched signatures:", signatures);
 
-app.get('/safety', async (req: express.Request, res: express.Response) => {
-  try {
-    const userPrompt = req.query.user_prompt as string;
-
-    if (!userPrompt) {
-      return res.status(400).send('Missing user_prompt parameter');
+    for (const sigInfo of signatures) {
+      console.log(`Checking signature: ${sigInfo.signature}`);
+      console.log(`Signature memo: "${sigInfo.memo}"`);
+      
+      if (sigInfo.memo && sigInfo.memo.includes(memo)) {
+        console.log("Memo match found!");
+        return sigInfo.signature;
+      } else {
+        console.log("No match");
+      }
     }
 
-    const safetyCheck = await safePrompting(userPrompt);
-
-    if (safetyCheck === 'safe' || safetyCheck === 'unsafe') {
-      res.send(safetyCheck);
-    } else {
-      throw new Error(`Unexpected safety status: ${safetyCheck}`);
-    }
-  } catch (error) {
-    console.error('Error checking prompt safety:', error);
-    res.status(500).send('Error checking prompt safety');
+    console.log("Waiting 5 seconds before next check...");
+    await new Promise(resolve => setTimeout(resolve, 5000));
   }
-});
+
+  console.log("Timeout reached, no matching memo found");
+  return null;
+}
+
+///////// API ROUTES
 
 app.get('/get_action', async (req, res) => {
     const rand: string = (Math.floor(Math.random() * 1000) + 1).toString();
@@ -552,39 +554,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
 // Start the server
 app.listen(port, () => {
-    console.log(`Listening at http://localhost:${port}/`);
+  console.log(`Listening at http://localhost:${port}/`);
+  console.log(`Test your blinks at http://localhost:${port}/get_action `)
 });
 export default app;
-
-async function findTransactionWithMemo(connection: Connection, userAccount: PublicKey, memo: string, timeoutMinutes: number = 5): Promise<TransactionSignature | null> {
-  const startTime = Date.now();
-  const timeoutMs = timeoutMinutes * 60 * 1000;
-
-  console.log(`Searching for memo: "${memo}"`);
-
-  while (Date.now() - startTime < timeoutMs) {
-    const signatures = await connection.getSignaturesForAddress(userAccount, 
-      { limit: 5 },
-      'confirmed'
-    );
-    console.log("Fetched signatures:", signatures);
-
-    for (const sigInfo of signatures) {
-      console.log(`Checking signature: ${sigInfo.signature}`);
-      console.log(`Signature memo: "${sigInfo.memo}"`);
-      
-      if (sigInfo.memo && sigInfo.memo.includes(memo)) {
-        console.log("Memo match found!");
-        return sigInfo.signature;
-      } else {
-        console.log("No match");
-      }
-    }
-
-    console.log("Waiting 5 seconds before next check...");
-    await new Promise(resolve => setTimeout(resolve, 5000));
-  }
-
-  console.log("Timeout reached, no matching memo found");
-  return null;
-}
