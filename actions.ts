@@ -175,7 +175,7 @@ async function generatePrompt(userPrompt: string) {
   return parsedresponse;
 }
 
-async function defineConfig(llmPrompt: string, randomNumber: number) {
+async function defineConfig(llmPrompt: string, randomNumber: number, memo: string) {
   const nftAttributes = await oai_client.chat.completions.create({
     messages: [
         {
@@ -219,6 +219,7 @@ async function defineConfig(llmPrompt: string, randomNumber: number) {
     attributes: [
         {trait_type: 'Mood', value: llmResponse.mood ||''},
         {trait_type: 'Haiku', value:llmResponse.haiku ||''},
+        {trait_type: 'Note', value: memo ||''},
     ],
     sellerFeeBasisPoints: 500, // 500 bp = 5%
     symbol: 'AIART',
@@ -417,7 +418,7 @@ app.get('/get_action', async (req, res) => {
                 },
                 {
                   name: "memo",
-                  label: "Add a memo",
+                  label: "Custom note",
                   required: true,
                 }
               ]
@@ -441,12 +442,12 @@ app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
 
   const randomNumber = Math.floor(Math.random() * 10000);
-  const rand: string = randomNumber.toString()
+  // const rand: string = randomNumber.toString()
 
   try {
     const prompt = (req.query.user_prompt as string || '').trim();
     console.log('User prompt:', prompt);
-    const memo = (req.query.memo + rand as string || '').trim();
+    const memo = (req.query.memo as string || '').trim();
     console.log('User memo: ', memo)
     const body: ActionPostRequest = req.body;
 
@@ -510,7 +511,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
         const llmSays = await generatePrompt(prompt);
         console.log(`LLM prompt 🤖-> ${llmSays}`);
 
-        const CONFIG = await defineConfig(llmSays, randomNumber);
+        const CONFIG = await defineConfig(llmSays, randomNumber, memo);
         const imageName = `'${CONFIG.imgName}'`
         console.log(`Image Name -> ${imageName}`)
         
