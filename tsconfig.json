@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "ESNext",  // Using the newer ESNext over es5 for better features
-    "module": "ESNext",  // Using esnext as it is the latest standard
+    "target": "ESNext", 
+    "module": "ESNext",  
     "lib": [
       "dom",
       "dom.iterable",

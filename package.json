@@ -10,6 +10,8 @@
     "@metaplex-foundation/js": "^0.18.3",
     "@metaplex-foundation/mpl-token-metadata": "^3.2.1",
     "@metaplex/js": "^4.12.0",
+    "@solana/actions": "^1.1.1",
+    "@solana/spl-memo": "^0.2.5",
     "@solana/wallet-adapter-ledger": "^0.9.25",
     "@solana/wallet-adapter-react": "^0.15.35",
     "@solana/wallet-adapter-react-ui": "^0.9.35",
@@ -54,6 +56,7 @@
     "test": "react-app-rewired test",
     "eject": "react-scripts eject",
     "app": "tsx ./app.ts",
+    "actions": "tsx ./actions.ts",
     "dev": "nodemon"
   },
   "eslintConfig": {
