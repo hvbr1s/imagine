@@ -1,20 +1,35 @@
+// Node.js built-in modules
+import { EventEmitter } from 'events';
 import * as fs from 'graceful-fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Third-party modules
+import axios from 'axios';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
-import axios from 'axios';
-import OpenAI from 'openai';
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from "@metaplex-foundation/js";
-import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
-import cors from 'cors';
-import { EventEmitter } from 'events';
 import Instructor from "@instructor-ai/instructor";
-import { z } from "zod"
-import { stringify } from 'querystring';
+import OpenAI from 'openai';
+import { z } from "zod";
 
+// Solana-related imports
+import { 
+  Connection, 
+  Keypair, 
+  PublicKey, 
+  TransactionSignature 
+} from '@solana/web3.js';
+
+// Metaplex-related imports
+import { 
+  Metaplex, 
+  bundlrStorage, 
+  keypairIdentity, 
+  toMetaplexFile 
+} from "@metaplex-foundation/js";
+import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
 
 // Load environment variable
 dotenv.config();
@@ -46,7 +61,8 @@ const WALLET = getKeypairFromEnvironment();
 const METAPLEX = Metaplex.make(SOLANA_CONNECTION)
     .use(keypairIdentity(WALLET))
     .use(bundlrStorage({
-        address: 'https://devnet.bundlr.network',
+        address: 'https://devnet.bundlr.network', // Devnet
+        //address: 'https://node1.bundlr.network', // Mainnet
         providerUrl: QUICKNODE_RPC,
         timeout: 60000,
     }));
@@ -156,7 +172,7 @@ async function defineConfig(llmPrompt: string, randomNumber: number) {
             Expected output:
 
             {
-              "one_word_title": "<describe the image in ONE word>",
+              "one_word_title": "<describe the image in ONE word, be creative>",
               "description": "<a very short description of the prompt>",
               "mood": "<the mood of the prompt>",
               "haiku" "<a very short haiku based on the prompt>"
@@ -423,7 +439,7 @@ app.get('/imagine', async (req, res) => {
 
     // Response
     res.json(mintSend);
-    
+
   } catch (error) {
     console.error('Error processing request:', error);
     res.status(500).send({ error: "Error processing the request"});
@@ -436,3 +452,36 @@ app.listen(port, () => {
     console.log(`Listening at http://localhost:${port}/`);
 });
 export default app;
+
+async function findTransactionWithMemo(connection: Connection, userAccount: PublicKey, memo: string, timeoutMinutes: number = 5): Promise<TransactionSignature | null> {
+  const startTime = Date.now();
+  const timeoutMs = timeoutMinutes * 60 * 1000;
+
+  console.log(`Searching for memo: "${memo}"`);
+
+  while (Date.now() - startTime < timeoutMs) {
+    const signatures = await connection.getSignaturesForAddress(userAccount, 
+      { limit: 5 },
+      'confirmed'
+    );
+    console.log("Fetched signatures:", signatures);
+
+    for (const sigInfo of signatures) {
+      console.log(`Checking signature: ${sigInfo.signature}`);
+      console.log(`Signature memo: "${sigInfo.memo}"`);
+      
+      if (sigInfo.memo && sigInfo.memo.includes(memo)) {
+        console.log("Memo match found!");
+        return sigInfo.signature;
+      } else {
+        console.log("No match");
+      }
+    }
+
+    console.log("Waiting 5 seconds before next check...");
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+
+  console.log("Timeout reached, no matching memo found");
+  return null;
+}
