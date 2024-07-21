@@ -1,9 +1,7 @@
 // Node.js built-in modules
-import { EventEmitter } from 'events';
 import * as fs from 'graceful-fs';
 import * as path from 'path';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 // Third-party modules
 import axios from 'axios';
@@ -44,7 +42,6 @@ import {
 } from "@metaplex-foundation/js";
 import { TokenStandard } from '@metaplex-foundation/mpl-token-metadata';
 
-const FEE_LAMPORTS = 0.0001 * LAMPORTS_PER_SOL; // 0.05 SOL in lamports
 const TREASURY_ADDRESS = new PublicKey('3crhbDnPJU9xvvhUwEs8WXPqAcA9aovsbj6aRBX9bNbw');
 
 // Load environment variable
@@ -83,27 +80,6 @@ const METAPLEX = Metaplex.make(SOLANA_CONNECTION)
         timeout: 60000,
     }));
 
-///// EVENT LOGIC
-
-const progressEmitter = new EventEmitter();
-
-app.get('/progress', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
-  });
-
-  const sendProgress = (data:any) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  };
-
-  progressEmitter.on('progress', sendProgress);
-
-  req.on('close', () => {
-    progressEmitter.off('progress', sendProgress);
-  });
-});
 
 ///// AI LOGIC
 const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
@@ -305,7 +281,7 @@ async function mintProgrammableNft(
         tokenStandard: TokenStandard.ProgrammableNonFungible,
         ruleSet: null
     });
-    const { nft } = await METAPLEX.nfts().create({
+    await METAPLEX.nfts().create({
         uri: metadataUri,
         name: name,
         sellerFeeBasisPoints: sellerFee,
@@ -396,6 +372,23 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
   return null;
 }
 
+// Fee setting function
+async function getFeeInLamports(connection: Connection): Promise<number> {
+  // 1. Get the current SOL/USD price
+  const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+  const data = await response.json();
+  const solPrice = data.solana.usd;
+
+  // 2. Calculate SOL equivalent of 10 USD
+  const solAmount = 10 / solPrice;
+
+  // 3. Convert SOL to lamports
+  const lamports = solAmount * LAMPORTS_PER_SOL;
+
+  // Round to the nearest whole number of lamports
+  return Math.round(lamports);
+}
+
 ///////// API ROUTES
 
 app.get('/get_action', async (req, res) => {
@@ -418,7 +411,7 @@ app.get('/get_action', async (req, res) => {
                 },
                 {
                   name: "memo",
-                  label: "Custom note",
+                  label: "Add a note",
                   required: true,
                 }
               ]
@@ -442,7 +435,6 @@ app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
 
   const randomNumber = Math.floor(Math.random() * 10000);
-  // const rand: string = randomNumber.toString()
 
   try {
     const prompt = (req.query.user_prompt as string || '').trim();
@@ -471,12 +463,16 @@ app.post('/post_action', async (req: Request, res: Response) => {
       // Get the latest blockhash
       const { blockhash } = await connection.getLatestBlockhash();
 
+      // Get fee price
+      const mintingFee =  await getFeeInLamports(connection);
+      console.log(`Fee for this transaction -> ${mintingFee} lamports or `)
+
       // Adding payment
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: user_account,
           toPubkey: TREASURY_ADDRESS,
-          lamports: FEE_LAMPORTS,
+          lamports: mintingFee,
         })
       );
 
